@@ -228,6 +228,7 @@ export default function Home() {
   const editorRef = useRef<HTMLTextAreaElement | null>(null)
   const editorSearchRef = useRef<HTMLInputElement | null>(null)
   const goToLineRef = useRef<HTMLInputElement | null>(null)
+  const openingFilesRef = useRef(new Set<string>())
 
   const filteredFiles = useMemo(
     () => search.trim()
@@ -236,7 +237,15 @@ export default function Home() {
     [files, search]
   )
   const visibleTree = useMemo(() => buildTree(filteredFiles), [filteredFiles])
-  const activeTab = openTabs.find(tab => tab.path === selectedFile)
+  const uniqueTabs = useMemo(() => {
+    const seen = new Set<string>()
+    return openTabs.filter(tab => {
+      if (seen.has(tab.path)) return false
+      seen.add(tab.path)
+      return true
+    })
+  }, [openTabs])
+  const activeTab = uniqueTabs.find(tab => tab.path === selectedFile)
   const code = activeTab?.content ?? ""
   const dirty = Boolean(activeTab && activeTab.content !== activeTab.savedContent)
   const selectedRuntime = useMemo(
@@ -259,6 +268,11 @@ export default function Home() {
     return matches
   }, [code, editorQuery])
   const diagnostics = useMemo(() => parseDiagnostics(output), [output])
+
+  useEffect(() => {
+    if (openTabs.length === uniqueTabs.length) return
+    setOpenTabs(uniqueTabs)
+  }, [openTabs.length, uniqueTabs])
 
   useEffect(() => {
     setEditorMatchIndex(0)
@@ -312,6 +326,8 @@ export default function Home() {
   }
 
   async function openFile(path: string) {
+    if (openingFilesRef.current.has(path)) return
+
     const existing = openTabs.find(tab => tab.path === path)
     if (existing) {
       setSelectedFile(path)
@@ -320,16 +336,23 @@ export default function Home() {
       return
     }
 
+    openingFilesRef.current.add(path)
     setStatus(`Opening ${path}`)
     try {
       const result = await getProjectFile(PROJECT_ID, path)
-      setOpenTabs(current => [...current, { path, content: result.content, savedContent: result.content }])
+      setOpenTabs(current => {
+        const existingIndex = current.findIndex(tab => tab.path === path)
+        if (existingIndex >= 0) return current
+        return [...current, { path, content: result.content, savedContent: result.content }]
+      })
       setSelectedFile(path)
       setSelectedLanguage(detectLanguage(path, languages))
       setOutput("")
       setStatus("Ready")
     } catch (error) {
       setStatus(formatError(error, "Unable to open file"))
+    } finally {
+      openingFilesRef.current.delete(path)
     }
   }
 
@@ -339,7 +362,7 @@ export default function Home() {
   }
 
   async function saveTab(path = selectedFile) {
-    const tab = openTabs.find(item => item.path === path)
+    const tab = uniqueTabs.find(item => item.path === path)
     if (!tab || saving) return
     setSaving(true)
     setStatus(`Saving ${path}`)
@@ -355,11 +378,11 @@ export default function Home() {
   }
 
   function closeTab(path: string) {
-    const tab = openTabs.find(item => item.path === path)
+    const tab = uniqueTabs.find(item => item.path === path)
     if (!tab) return
     if (tab.content !== tab.savedContent && !window.confirm(`${fileName(path)} has unsaved changes. Close anyway?`)) return
 
-    const next = openTabs.filter(item => item.path !== path)
+    const next = uniqueTabs.filter(item => item.path !== path)
     setOpenTabs(next)
     if (selectedFile === path) {
       const nextTab = next[next.length - 1]
@@ -370,7 +393,7 @@ export default function Home() {
 
   async function runCurrentFile() {
     if (!selectedFile || running) return
-    const tab = openTabs.find(item => item.path === selectedFile)
+    const tab = uniqueTabs.find(item => item.path === selectedFile)
     if (!tab) return
     setRunning(true)
     setOutput("Saving current file...\n")
@@ -452,7 +475,7 @@ export default function Home() {
           <div className="border-b border-neutral-800 px-4 py-2 text-[11px] text-neutral-600">{status}</div>
           <div className="h-[calc(100vh-9.5rem)] overflow-auto p-2">
             <div className="mb-2 flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-200"><FolderOpen size={15} /><span className="truncate">{project?.name ?? "the-house-of-coding"}</span></div>
-            {visibleTree.map(node => <AgentTreeNode key={node.path} node={node} depth={0} selectedFile={selectedFile} openTabs={openTabs} onOpen={path => void openFile(path)} />)}
+            {visibleTree.map(node => <AgentTreeNode key={node.path} node={node} depth={0} selectedFile={selectedFile} openTabs={uniqueTabs} onOpen={path => void openFile(path)} />)}
             {search && visibleTree.length === 0 && <div className="px-3 py-4 text-xs text-neutral-600">No matching files.</div>}
           </div>
         </aside>
@@ -460,7 +483,11 @@ export default function Home() {
         <section className="grid min-w-0 grid-rows-[42px_40px_minmax(0,1fr)_220px]">
           <div className="flex min-w-0 items-center justify-between border-b border-neutral-800 px-4"><div className="flex min-w-0 items-center gap-3 text-sm"><FileCode2 size={15} /><span className="truncate">{selectedFile || "No file selected"}</span><span className="hidden text-xs text-neutral-600 md:inline">{selectedRuntime?.command ?? "runtime unavailable"}</span></div><span className={`text-xs ${dirty ? "text-neutral-300" : "text-neutral-600"}`}>{dirty ? "Unsaved" : status}</span></div>
           <div className="flex min-w-0 items-center overflow-x-auto border-b border-neutral-800 bg-neutral-950">
-            {openTabs.map(tab => { const active = tab.path === selectedFile; const tabDirty = tab.content !== tab.savedContent; return <div key={tab.path} className={`group flex h-full shrink-0 items-center border-r border-neutral-800 ${active ? "bg-neutral-900" : "bg-neutral-950"}`}><button onClick={() => { setSelectedFile(tab.path); setSelectedLanguage(detectLanguage(tab.path, languages)) }} className={`flex h-full items-center gap-2 px-3 text-xs ${active ? "text-white" : "text-neutral-500 hover:text-neutral-300"}`} title={tab.path}><FileCode2 size={13} />{fileName(tab.path)}{tabDirty && <span className="h-1.5 w-1.5 rounded-full bg-neutral-500" />}</button><button onClick={() => closeTab(tab.path)} className="mr-1 rounded p-1 text-neutral-700 opacity-0 transition group-hover:opacity-100 hover:bg-neutral-800 hover:text-white" title="Close tab"><X size={12} /></button></div> })}
+            {uniqueTabs.map(tab => {
+              const active = tab.path === selectedFile
+              const tabDirty = tab.content !== tab.savedContent
+              return <div key={tab.path} className={`group flex h-full shrink-0 items-center border-r border-neutral-800 ${active ? "bg-neutral-900" : "bg-neutral-950"}`}><button onClick={() => { setSelectedFile(tab.path); setSelectedLanguage(detectLanguage(tab.path, languages)) }} className={`flex h-full items-center gap-2 px-3 text-xs ${active ? "text-white" : "text-neutral-500 hover:text-neutral-300"}`} title={tab.path}><FileCode2 size={13} />{fileName(tab.path)}{tabDirty && <span className="h-1.5 w-1.5 rounded-full bg-neutral-500" />}</button><button onClick={() => closeTab(tab.path)} className="mr-1 rounded p-1 text-neutral-700 opacity-0 transition group-hover:opacity-100 hover:bg-neutral-800 hover:text-white" title="Close tab"><X size={12} /></button></div>
+            })}
           </div>
           <div className="relative grid min-h-0 grid-cols-[54px_minmax(0,1fr)] bg-[#0b0b0b]">
             <div className="select-none overflow-hidden border-r border-neutral-900 bg-[#090909] px-3 pt-4 text-right font-mono text-xs leading-7 text-neutral-700">{numbers.map(number => <div key={number}>{number}</div>)}</div>
