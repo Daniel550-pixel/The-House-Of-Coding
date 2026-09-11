@@ -13,9 +13,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const data = await response.json().catch(() => null)
 
   if (!response.ok) {
-    throw new Error(
-      data?.error ?? `Request failed with HTTP ${response.status}`
-    )
+    throw new Error(data?.error ?? `Request failed with HTTP ${response.status}`)
   }
 
   return data as T
@@ -39,50 +37,38 @@ export type LanguageRuntime = {
   command: string
 }
 
+export type ExecutionResult = {
+  language: string
+  command: string
+  stdout: string
+  stderr: string
+  exitCode: number
+  durationMs: number
+  success: boolean
+}
+
 export function getProjects() {
   return request<{ success: boolean; projects: Project[] }>("/projects")
 }
 
 export function getProjectFiles(projectId: string) {
-  return request<{
-    success: boolean
-    project: string
-    count: number
-    files: WorkspaceFile[]
-  }>(`/projects/${projectId}/files`)
+  return request<{ success: boolean; project: string; count: number; files: WorkspaceFile[] }>(`/projects/${projectId}/files`)
 }
 
 export function getProjectFile(projectId: string, path: string) {
   const query = new URLSearchParams({ path })
-
-  return request<{
-    success: boolean
-    path: string
-    content: string
-  }>(`/projects/${projectId}/file?${query.toString()}`)
+  return request<{ success: boolean; path: string; content: string }>(`/projects/${projectId}/file?${query.toString()}`)
 }
 
-export function saveProjectFile(
-  projectId: string,
-  path: string,
-  content: string
-) {
-  return request<{
-    success: boolean
-    path: string
-    bytes: number
-  }>(`/projects/${projectId}/file`, {
+export function saveProjectFile(projectId: string, path: string, content: string) {
+  return request<{ success: boolean; path: string; bytes: number }>(`/projects/${projectId}/file`, {
     method: "POST",
     body: JSON.stringify({ path, content })
   })
 }
 
 export function getLanguages() {
-  return request<{
-    success: boolean
-    count: number
-    languages: LanguageRuntime[]
-  }>("/languages")
+  return request<{ success: boolean; count: number; languages: LanguageRuntime[] }>("/languages")
 }
 
 export function generateCode(input: {
@@ -106,23 +92,42 @@ export function generateCode(input: {
   })
 }
 
-export function executeFile(input: {
+export function executeFile(input: { language: string; filePath: string; args?: string[] }) {
+  return request<{ success: boolean; result: ExecutionResult }>("/execute", {
+    method: "POST",
+    body: JSON.stringify(input)
+  })
+}
+
+export function runAutonomous(input: {
+  instruction: string
   language: string
   filePath: string
-  args?: string[]
+  maxIterations?: number
 }) {
   return request<{
     success: boolean
     result: {
-      language: string
-      command: string
-      stdout: string
-      stderr: string
-      exitCode: number
-      durationMs: number
       success: boolean
+      iteration: number
+      events: Array<{
+        iteration: number
+        stage: "code" | "execute" | "debug" | "test" | "complete" | "failed"
+        message: string
+      }>
+      execution?: ExecutionResult
+      tests?: {
+        provider: string
+        model: string
+        content: string
+      }
+      debug?: {
+        provider: string
+        model: string
+        content: string
+      }
     }
-  }>("/execute", {
+  }>("/autonomous", {
     method: "POST",
     body: JSON.stringify(input)
   })
