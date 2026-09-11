@@ -26,44 +26,125 @@ export class AutonomousCodingLoop {
     private readonly workspace: WorkspaceManager
   ) {}
 
-  async run(request: AutonomousLoopRequest, onEvent?: (event: AutonomousLoopEvent) => void) {
+  async run(
+    initialRequest: AutonomousLoopRequest,
+    onEvent?: (event: AutonomousLoopEvent) => void
+  ) {
+    let request = { ...initialRequest }
     const maxIterations = Math.max(1, Math.min(request.maxIterations ?? 3, 5))
     const events: AutonomousLoopEvent[] = []
-    const emit = (event: AutonomousLoopEvent) => { events.push(event); onEvent?.(event) }
+    const emit = (event: AutonomousLoopEvent) => {
+      events.push(event)
+      onEvent?.(event)
+    }
 
     for (let iteration = 1; iteration <= maxIterations; iteration += 1) {
-      emit({ iteration, stage: "code", message: "Coding Agent analyzing workspace and applying changes." })
+      emit({
+        iteration,
+        stage: "code",
+        message: "Coding Agent analyzing workspace and applying changes."
+      })
 
-      const codeResult = await this.coder.execute({ instruction: request.instruction, language: request.language, apply: true })
+      const codeResult = await this.coder.execute({
+        instruction: request.instruction,
+        language: request.language,
+        apply: true
+      })
+
       if (codeResult.parsed === false) {
-        emit({ iteration, stage: "failed", message: "Coding Agent returned an unstructured response; no autonomous execution was attempted." })
+        emit({
+          iteration,
+          stage: "failed",
+          message: "Coding Agent returned an unstructured response; no autonomous execution was attempted."
+        })
         return { success: false, iteration, events, code: codeResult }
       }
 
-      emit({ iteration, stage: "execute", message: `Executing ${request.filePath}.` })
+      emit({
+        iteration,
+        stage: "execute",
+        message: `Executing ${request.filePath}.`
+      })
+
       const absolute = this.workspace.resolveSafe(request.filePath)
-      const executionResult = await this.execution.execute({ language: request.language, filePath: absolute, workingDirectory: this.workspace.root })
+      const executionResult = await this.execution.execute({
+        language: request.language,
+        filePath: absolute,
+        workingDirectory: this.workspace.root
+      })
 
       if (executionResult.success) {
-        emit({ iteration, stage: "test", message: "Execution succeeded; requesting test analysis." })
+        emit({
+          iteration,
+          stage: "test",
+          message: "Execution succeeded; requesting test analysis."
+        })
+
         const code = await this.workspace.readFile(request.filePath)
-        const testResult = await this.tester.analyze({ code, language: request.language })
-        emit({ iteration, stage: "complete", message: "Autonomous coding loop completed successfully." })
-        return { success: true, iteration, events, code: codeResult, execution: executionResult, tests: testResult }
+        const testResult = await this.tester.analyze({
+          code,
+          language: request.language
+        })
+
+        emit({
+          iteration,
+          stage: "complete",
+          message: "Autonomous coding loop completed successfully."
+        })
+
+        return {
+          success: true,
+          iteration,
+          events,
+          code: codeResult,
+          execution: executionResult,
+          tests: testResult
+        }
       }
 
-      emit({ iteration, stage: "debug", message: "Execution failed; Debugger Agent analyzing the failure." })
-      const code = await this.workspace.readFile(request.filePath).catch(() => undefined)
-      const debugResult = await this.debuggerAgent.diagnose({ error: `${executionResult.stderr}\nExit code: ${executionResult.exitCode}`, code, language: request.language })
+      emit({
+        iteration,
+        stage: "debug",
+        message: "Execution failed; Debugger Agent analyzing the failure."
+      })
+
+      const code = await this.workspace
+        .readFile(request.filePath)
+        .catch(() => undefined)
+
+      const debugResult = await this.debuggerAgent.diagnose({
+        error: `${executionResult.stderr}\nExit code: ${executionResult.exitCode}`,
+        code,
+        language: request.language
+      })
 
       if (iteration === maxIterations) {
-        emit({ iteration, stage: "failed", message: "Maximum autonomous iterations reached." })
-        return { success: false, iteration, events, code: codeResult, execution: executionResult, debug: debugResult }
+        emit({
+          iteration,
+          stage: "failed",
+          message: "Maximum autonomous iterations reached."
+        })
+
+        return {
+          success: false,
+          iteration,
+          events,
+          code: codeResult,
+          execution: executionResult,
+          debug: debugResult
+        }
       }
 
-      request = { ...request, instruction: `${request.instruction}\n\nPrevious execution failed. Use this debugger diagnosis to correct the implementation:\n${debugResult.content}` }
+      request = {
+        ...request,
+        instruction: `${request.instruction}\n\nPrevious execution failed. Use this debugger diagnosis to correct the implementation:\n${debugResult.content}`
+      }
     }
 
-    return { success: false, iteration: maxIterations, events }
+    return {
+      success: false,
+      iteration: maxIterations,
+      events
+    }
   }
 }
