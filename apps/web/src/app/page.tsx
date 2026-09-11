@@ -28,8 +28,10 @@ import {
   getProjectFiles,
   getProjects,
   saveProjectFile,
+  searchProject,
   type LanguageRuntime,
   type Project,
+  type SearchResult,
   type WorkspaceFile
 } from "../lib/api"
 
@@ -212,6 +214,10 @@ export default function Home() {
   const [openTabs, setOpenTabs] = useState<OpenTab[]>([])
   const [prompt, setPrompt] = useState("")
   const [search, setSearch] = useState("")
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false)
+  const [globalQuery, setGlobalQuery] = useState("")
+  const [globalResults, setGlobalResults] = useState<SearchResult[]>([])
+  const [globalSearchLoading, setGlobalSearchLoading] = useState(false)
   const [editorSearchOpen, setEditorSearchOpen] = useState(false)
   const [editorQuery, setEditorQuery] = useState("")
   const [editorMatchIndex, setEditorMatchIndex] = useState(0)
@@ -228,6 +234,7 @@ export default function Home() {
   const editorRef = useRef<HTMLTextAreaElement | null>(null)
   const editorSearchRef = useRef<HTMLInputElement | null>(null)
   const goToLineRef = useRef<HTMLInputElement | null>(null)
+  const globalSearchRef = useRef<HTMLInputElement | null>(null)
   const openingFilesRef = useRef(new Set<string>())
 
   const filteredFiles = useMemo(
@@ -274,9 +281,7 @@ export default function Home() {
     setOpenTabs(uniqueTabs)
   }, [openTabs.length, uniqueTabs])
 
-  useEffect(() => {
-    setEditorMatchIndex(0)
-  }, [editorQuery, selectedFile])
+  useEffect(() => setEditorMatchIndex(0), [editorQuery, selectedFile])
 
   useEffect(() => {
     if (editorSearchOpen) requestAnimationFrame(() => editorSearchRef.current?.focus())
@@ -285,6 +290,69 @@ export default function Home() {
   useEffect(() => {
     if (goToLineOpen) requestAnimationFrame(() => goToLineRef.current?.focus())
   }, [goToLineOpen])
+
+  useEffect(() => {
+    if (globalSearchOpen) requestAnimationFrame(() => globalSearchRef.current?.focus())
+  }, [globalSearchOpen])
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const editing = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA"
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
+        event.preventDefault()
+        setGlobalSearchOpen(true)
+        return
+      }
+
+      if (!editing && (event.ctrlKey || event.metaKey) && event.key === "PageDown" && uniqueTabs.length > 1) {
+        event.preventDefault()
+        const currentIndex = Math.max(uniqueTabs.findIndex(tab => tab.path === selectedFile), 0)
+        const nextTab = uniqueTabs[(currentIndex + 1) % uniqueTabs.length]
+        setSelectedFile(nextTab.path)
+        setSelectedLanguage(detectLanguage(nextTab.path, languages))
+        return
+      }
+
+      if (!editing && (event.ctrlKey || event.metaKey) && event.key === "PageUp" && uniqueTabs.length > 1) {
+        event.preventDefault()
+        const currentIndex = Math.max(uniqueTabs.findIndex(tab => tab.path === selectedFile), 0)
+        const nextTab = uniqueTabs[(currentIndex - 1 + uniqueTabs.length) % uniqueTabs.length]
+        setSelectedFile(nextTab.path)
+        setSelectedLanguage(detectLanguage(nextTab.path, languages))
+      }
+    }
+
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [languages, selectedFile, uniqueTabs])
+
+  useEffect(() => {
+    if (!globalSearchOpen || globalQuery.trim().length < 2) {
+      setGlobalResults([])
+      setGlobalSearchLoading(false)
+      return
+    }
+
+    let cancelled = false
+    const timer = window.setTimeout(async () => {
+      setGlobalSearchLoading(true)
+      try {
+        const result = await searchProject({ projectId: PROJECT_ID, query: globalQuery.trim() })
+        if (!cancelled) setGlobalResults(result.results)
+      } catch {
+        if (!cancelled) setGlobalResults([])
+      } finally {
+        if (!cancelled) setGlobalSearchLoading(false)
+      }
+    }, 180)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [globalQuery, globalSearchOpen])
 
   function selectEditorMatch(index: number) {
     if (!editorMatches.length) return
@@ -325,14 +393,21 @@ export default function Home() {
     }
   }
 
-  async function openFile(path: string) {
+  async function openFile(path: string, targetLine?: number, targetColumn?: number) {
     if (openingFilesRef.current.has(path)) return
 
-    const existing = openTabs.find(tab => tab.path === path)
+    const existing = uniqueTabs.find(tab => tab.path === path)
     if (existing) {
       setSelectedFile(path)
       setSelectedLanguage(detectLanguage(path, languages))
       setOutput("")
+      requestAnimationFrame(() => {
+        if (!targetLine) return
+        const indexAtLine = lineStartIndex(existing.content, targetLine)
+        const cursor = Math.min(indexAtLine + Math.max((targetColumn ?? 1) - 1, 0), existing.content.length)
+        editorRef.current?.focus()
+        editorRef.current?.setSelectionRange(cursor, cursor)
+      })
       return
     }
 
@@ -349,6 +424,13 @@ export default function Home() {
       setSelectedLanguage(detectLanguage(path, languages))
       setOutput("")
       setStatus("Ready")
+      requestAnimationFrame(() => {
+        if (!targetLine) return
+        const indexAtLine = lineStartIndex(result.content, targetLine)
+        const cursor = Math.min(indexAtLine + Math.max((targetColumn ?? 1) - 1, 0), result.content.length)
+        editorRef.current?.focus()
+        editorRef.current?.setSelectionRange(cursor, cursor)
+      })
     } catch (error) {
       setStatus(formatError(error, "Unable to open file"))
     } finally {
@@ -449,24 +531,61 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => void refreshWorkspace()} className="rounded-lg border border-neutral-800 p-2 text-neutral-400 hover:text-white" title="Refresh workspace"><RefreshCw size={16} /></button>
-          <AutonomousControls
-            language={selectedLanguage}
-            filePath={selectedFile}
-            code={code}
-            instruction={prompt}
-            onOutput={(value, action) => {
-              setOutputKind("agent")
-              setLastAgentAction(action ?? null)
-              setOutput(value)
-            }}
-            onFilesChanged={() => { void refreshWorkspace(); if (selectedFile) void openFile(selectedFile) }}
-          />
+          <AutonomousControls language={selectedLanguage} filePath={selectedFile} code={code} instruction={prompt} onOutput={(value, action) => { setOutputKind("agent"); setLastAgentAction(action ?? null); setOutput(value) }} onFilesChanged={() => { void refreshWorkspace(); if (selectedFile) void openFile(selectedFile) }} />
           <div className="hidden items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 xl:flex"><span className="text-xs text-neutral-500">Language</span><select value={selectedLanguage} onChange={event => setSelectedLanguage(event.target.value)} className="bg-transparent text-sm outline-none">{languages.map(language => <option key={language.language} value={language.language} className="bg-neutral-900">{language.language}</option>)}</select><ChevronDown size={14} /></div>
           <button onClick={() => void runCurrentFile()} disabled={running || !selectedFile} className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-black disabled:opacity-50"><Play size={15} />{running ? "Running" : "Run"}</button>
           <button onClick={() => void saveTab()} disabled={saving || !dirty} className="rounded-lg border border-neutral-800 p-2 text-neutral-300 disabled:opacity-40" title={dirty ? "Save changes" : "Saved"}><Save size={17} /></button>
           <button className="rounded-lg border border-neutral-800 p-2 text-neutral-400 hover:text-white" title="Settings"><Settings size={17} /></button>
         </div>
       </header>
+
+      {globalSearchOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 px-4 pt-[12vh]" onMouseDown={() => setGlobalSearchOpen(false)}>
+          <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-neutral-700 bg-neutral-950 shadow-2xl" onMouseDown={event => event.stopPropagation()}>
+            <div className="flex items-center gap-3 border-b border-neutral-800 px-4 py-3">
+              <Search size={17} className="text-neutral-500" />
+              <input
+                ref={globalSearchRef}
+                value={globalQuery}
+                onChange={event => setGlobalQuery(event.target.value)}
+                onKeyDown={event => { if (event.key === "Escape") setGlobalSearchOpen(false) }}
+                placeholder="Search workspace..."
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-neutral-600"
+              />
+              <kbd className="rounded border border-neutral-800 px-1.5 py-1 text-[10px] text-neutral-600">Ctrl P</kbd>
+              <button onClick={() => setGlobalSearchOpen(false)} className="rounded p-1 text-neutral-500 hover:bg-neutral-900 hover:text-white"><X size={14} /></button>
+            </div>
+            <div className="max-h-[60vh] overflow-auto">
+              {globalQuery.trim().length < 2 ? (
+                <div className="px-4 py-8 text-center text-xs text-neutral-600">Type at least 2 characters to search the workspace.</div>
+              ) : globalSearchLoading ? (
+                <div className="px-4 py-8 text-center text-xs text-neutral-600">Searching workspace...</div>
+              ) : globalResults.length === 0 ? (
+                <div className="px-4 py-8 text-center text-xs text-neutral-600">No matches.</div>
+              ) : (
+                <div className="divide-y divide-neutral-900">
+                  {globalResults.map((result, index) => (
+                    <button
+                      key={`${result.path}:${result.line}:${result.column}:${index}`}
+                      onClick={() => {
+                        setGlobalSearchOpen(false)
+                        void openFile(result.path, result.line, result.column)
+                      }}
+                      className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-neutral-900"
+                    >
+                      <FileCode2 size={14} className="mt-0.5 shrink-0 text-neutral-600" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 text-xs text-neutral-300"><span className="truncate">{result.path}</span><span className="shrink-0 text-[10px] text-neutral-600">{result.line}:{result.column}</span></div>
+                        <div className="mt-1 truncate font-mono text-[11px] text-neutral-600">{result.text}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="grid min-h-[calc(100vh-4rem)] grid-cols-[250px_minmax(0,1fr)_380px]">
         <aside className="min-w-0 border-r border-neutral-800">
@@ -536,20 +655,7 @@ export default function Home() {
             {editorSearchOpen && (
               <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900 p-2 shadow-2xl">
                 <Search size={14} className="text-neutral-500" />
-                <input
-                  ref={editorSearchRef}
-                  value={editorQuery}
-                  onChange={event => setEditorQuery(event.target.value)}
-                  onKeyDown={event => {
-                    if (event.key === "Enter") {
-                      event.preventDefault()
-                      selectEditorMatch(editorMatchIndex + (event.shiftKey ? -1 : 1))
-                    }
-                    if (event.key === "Escape") setEditorSearchOpen(false)
-                  }}
-                  placeholder="Find in file"
-                  className="w-48 bg-transparent text-xs outline-none placeholder:text-neutral-600"
-                />
+                <input ref={editorSearchRef} value={editorQuery} onChange={event => setEditorQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); selectEditorMatch(editorMatchIndex + (event.shiftKey ? -1 : 1)) } if (event.key === "Escape") setEditorSearchOpen(false) }} placeholder="Find in file" className="w-48 bg-transparent text-xs outline-none placeholder:text-neutral-600" />
                 <span className="min-w-[42px] text-right text-[10px] text-neutral-500">{editorMatches.length ? `${editorMatchIndex + 1}/${editorMatches.length}` : "0/0"}</span>
                 <button onClick={() => selectEditorMatch(editorMatchIndex - 1)} disabled={!editorMatches.length} className="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-white disabled:opacity-30" title="Previous match">↑</button>
                 <button onClick={() => selectEditorMatch(editorMatchIndex + 1)} disabled={!editorMatches.length} className="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-white disabled:opacity-30" title="Next match">↓</button>
@@ -559,21 +665,7 @@ export default function Home() {
             {goToLineOpen && (
               <div className="absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900 p-2 shadow-2xl">
                 <Hash size={14} className="text-neutral-500" />
-                <input
-                  ref={goToLineRef}
-                  inputMode="numeric"
-                  value={goToLineValue}
-                  onChange={event => setGoToLineValue(event.target.value.replace(/[^0-9]/g, ""))}
-                  onKeyDown={event => {
-                    if (event.key === "Enter") {
-                      event.preventDefault()
-                      goToLine()
-                    }
-                    if (event.key === "Escape") setGoToLineOpen(false)
-                  }}
-                  placeholder={`Go to line 1-${numbers.length}`}
-                  className="w-40 bg-transparent text-xs outline-none placeholder:text-neutral-600"
-                />
+                <input ref={goToLineRef} inputMode="numeric" value={goToLineValue} onChange={event => setGoToLineValue(event.target.value.replace(/[^0-9]/g, ""))} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); goToLine() } if (event.key === "Escape") setGoToLineOpen(false) }} placeholder={`Go to line 1-${numbers.length}`} className="w-40 bg-transparent text-xs outline-none placeholder:text-neutral-600" />
                 <button onClick={goToLine} disabled={!goToLineValue} className="rounded-md bg-white px-2 py-1 text-[10px] font-medium text-black disabled:opacity-30">Go</button>
                 <button onClick={() => setGoToLineOpen(false)} className="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-white"><X size={13} /></button>
               </div>
@@ -592,20 +684,7 @@ export default function Home() {
                 <div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-widest text-neutral-500"><AlertTriangle size={12} />Detected diagnostics</div>
                 <div className="space-y-1">
                   {diagnostics.map((diagnostic, index) => (
-                    <button
-                      key={`${diagnostic.source ?? "diagnostic"}-${diagnostic.line}-${diagnostic.column ?? ""}-${index}`}
-                      onClick={() => {
-                        const indexAtLine = lineStartIndex(code, diagnostic.line)
-                        const columnOffset = Math.max((diagnostic.column ?? 1) - 1, 0)
-                        const cursor = Math.min(indexAtLine + columnOffset, code.length)
-                        editorRef.current?.focus()
-                        editorRef.current?.setSelectionRange(cursor, cursor)
-                      }}
-                      className="block w-full truncate text-left font-mono text-[10px] text-neutral-500 hover:text-neutral-200"
-                      title={diagnostic.message}
-                    >
-                      <span className="mr-2 text-neutral-700">L{diagnostic.line}{diagnostic.column ? `:${diagnostic.column}` : ""}</span>{diagnostic.message}
-                    </button>
+                    <button key={`${diagnostic.source ?? "diagnostic"}-${diagnostic.line}-${diagnostic.column ?? ""}-${index}`} onClick={() => { const indexAtLine = lineStartIndex(code, diagnostic.line); const columnOffset = Math.max((diagnostic.column ?? 1) - 1, 0); const cursor = Math.min(indexAtLine + columnOffset, code.length); editorRef.current?.focus(); editorRef.current?.setSelectionRange(cursor, cursor) }} className="block w-full truncate text-left font-mono text-[10px] text-neutral-500 hover:text-neutral-200" title={diagnostic.message}><span className="mr-2 text-neutral-700">L{diagnostic.line}{diagnostic.column ? `:${diagnostic.column}` : ""}</span>{diagnostic.message}</button>
                   ))}
                 </div>
               </div>
