@@ -24,7 +24,7 @@ export function AutonomousControls({
   filePath: string
   code: string
   instruction: string
-  onOutput: (value: string) => void
+  onOutput: (value: string, action?: AgentAction) => void
   onFilesChanged?: () => void
 }) {
   const [running, setRunning] = useState<AgentAction | null>(null)
@@ -36,7 +36,7 @@ export function AutonomousControls({
     const task = instruction.trim() || "Inspect the current file and improve it without breaking its behavior."
 
     try {
-      onOutput(`Starting ${action.toUpperCase()} agent...\n`)
+      onOutput(`Starting ${action.toUpperCase()} agent...\n`, action)
 
       if (action === "code") {
         const result = await generateCode({
@@ -48,7 +48,7 @@ export function AutonomousControls({
         const files = result.result.files?.length
           ? `\n\nChanged files:\n${result.result.files.join("\n")}`
           : ""
-        onOutput(`${result.result.response ?? "No response returned."}${files}`)
+        onOutput(`${result.result.response ?? "No response returned."}${files}`, action)
         onFilesChanged?.()
         return
       }
@@ -59,19 +59,19 @@ export function AutonomousControls({
           code,
           language
         })
-        onOutput(result.result.content || "Debugger returned no analysis.")
+        onOutput(result.result.content || "Debugger returned no analysis.", action)
         return
       }
 
       if (action === "test") {
         const result = await analyzeTests({ path: filePath, language })
-        onOutput(result.result.content || "Test agent returned no analysis.")
+        onOutput(result.result.content || "Test agent returned no analysis.", action)
         return
       }
 
       if (action === "review") {
         const result = await reviewCode({ path: filePath, code, language })
-        onOutput(result.result.content || "Reviewer returned no analysis.")
+        onOutput(result.result.content || "Reviewer returned no analysis.", action)
         return
       }
 
@@ -91,10 +91,10 @@ export function AutonomousControls({
         : ""
 
       const analysis = result.result.debug?.content || result.result.tests?.content || ""
-      onOutput(`${events}${execution}${analysis ? `\n\nAGENT ANALYSIS:\n${analysis}` : ""}`)
+      onOutput(`${events}${execution}${analysis ? `\n\nAGENT ANALYSIS:\n${analysis}` : ""}`, action)
       onFilesChanged?.()
     } catch (error) {
-      onOutput(error instanceof Error ? error.message : `${action} failed`)
+      onOutput(error instanceof Error ? error.message : `${action} failed`, action)
     } finally {
       setRunning(null)
     }
