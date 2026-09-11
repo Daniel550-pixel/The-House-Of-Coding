@@ -16,11 +16,11 @@ export const OpenAIProvider: LLMProvider = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + apiKey
+        Authorization: `Bearer ${apiKey}`
       },
       body: JSON.stringify({
         model,
-        instructions: request.system,
+        ...(request.system ? { instructions: request.system } : {}),
         input: request.prompt
       })
     })
@@ -33,8 +33,8 @@ export const OpenAIProvider: LLMProvider = {
 
     if (!response.ok) {
       throw new Error(
-        (data.error && data.error.message) ||
-        "OpenAI request failed with HTTP " + response.status
+        data.error?.message ||
+        `OpenAI request failed with HTTP ${response.status}`
       )
     }
 
