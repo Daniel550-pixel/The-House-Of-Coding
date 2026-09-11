@@ -31,8 +31,18 @@ export class HouseOrchestrator {
     return this.codingAgent.execute({ instruction, language, apply })
   }
 
-  async execute(language: string, filePath: string, workingDirectory?: string, args?: string[]) {
-    return this.execution.execute({ language, filePath, workingDirectory, args })
+  async execute(
+    language: string,
+    filePath: string,
+    workingDirectory?: string,
+    args?: string[]
+  ) {
+    return this.execution.execute({
+      language,
+      filePath,
+      workingDirectory,
+      args
+    })
   }
 }
 
