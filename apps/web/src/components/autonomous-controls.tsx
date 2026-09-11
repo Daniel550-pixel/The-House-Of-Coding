@@ -2,44 +2,84 @@
 
 import { useState } from "react"
 import { BrainCircuit, Bug, CheckCircle2, Code2, FlaskConical, ShieldCheck } from "lucide-react"
-import { runAutonomous } from "../lib/api"
+import {
+  analyzeTests,
+  debugCode,
+  generateCode,
+  reviewCode,
+  runAutonomous
+} from "../lib/api"
 
 export type AgentAction = "code" | "debug" | "test" | "review" | "auto"
 
 export function AutonomousControls({
   language,
   filePath,
+  code,
   instruction,
-  onOutput
+  onOutput,
+  onFilesChanged
 }: {
   language: string
   filePath: string
+  code: string
   instruction: string
   onOutput: (value: string) => void
+  onFilesChanged?: () => void
 }) {
   const [running, setRunning] = useState<AgentAction | null>(null)
 
   async function run(action: AgentAction) {
     if (running) return
+
     setRunning(action)
+    const task = instruction.trim() || "Inspect the current file and improve it without breaking its behavior."
 
     try {
-      const task = instruction.trim() || "Inspect the current file and improve it without breaking its behavior."
-      const modePrompt = {
-        code: `${task}\n\nWork as the coding agent. Make the requested implementation changes in the workspace.`,
-        debug: `${task}\n\nAct as a debugger. Inspect the current implementation and fix the most likely correctness/runtime issues.`,
-        test: `${task}\n\nAct as a testing agent. Improve the current implementation where needed for correctness, edge cases, and testability.`,
-        review: `${task}\n\nAct as a senior reviewer. Improve the implementation for correctness, security, maintainability, and performance.`,
-        auto: `${task}\n\nRun the autonomous coding workflow: implement, execute, diagnose failures, correct them, and verify the result.`
-      }[action]
+      onOutput(`Starting ${action.toUpperCase()} agent...\n`)
 
-      onOutput(`Starting ${action.toUpperCase()}...\n`)
+      if (action === "code") {
+        const result = await generateCode({
+          instruction: `${task}\n\nFocus on the selected file when possible: ${filePath}`,
+          language,
+          projectId: "house",
+          apply: true
+        })
+        const files = result.result.files?.length
+          ? `\n\nChanged files:\n${result.result.files.join("\n")}`
+          : ""
+        onOutput(`${result.result.response ?? "No response returned."}${files}`)
+        onFilesChanged?.()
+        return
+      }
+
+      if (action === "debug") {
+        const result = await debugCode({
+          error: task,
+          code,
+          language
+        })
+        onOutput(result.result.content || "Debugger returned no analysis.")
+        return
+      }
+
+      if (action === "test") {
+        const result = await analyzeTests({ path: filePath, language })
+        onOutput(result.result.content || "Test agent returned no analysis.")
+        return
+      }
+
+      if (action === "review") {
+        const result = await reviewCode({ path: filePath, code, language })
+        onOutput(result.result.content || "Reviewer returned no analysis.")
+        return
+      }
 
       const result = await runAutonomous({
-        instruction: modePrompt,
+        instruction: task,
         language,
         filePath,
-        maxIterations: action === "auto" ? 3 : 1
+        maxIterations: 3
       })
 
       const events = result.result.events
@@ -50,8 +90,9 @@ export function AutonomousControls({
         ? `\n\nEXIT ${result.result.execution.exitCode}\nSTDOUT:\n${result.result.execution.stdout || "(none)"}\nSTDERR:\n${result.result.execution.stderr || "(none)"}`
         : ""
 
-      const agentOutput = result.result.tests?.content || result.result.debug?.content || ""
-      onOutput(`${events}${execution}${agentOutput ? `\n\nAGENT ANALYSIS:\n${agentOutput}` : ""}`)
+      const analysis = result.result.debug?.content || result.result.tests?.content || ""
+      onOutput(`${events}${execution}${analysis ? `\n\nAGENT ANALYSIS:\n${analysis}` : ""}`)
+      onFilesChanged?.()
     } catch (error) {
       onOutput(error instanceof Error ? error.message : `${action} failed`)
     } finally {
