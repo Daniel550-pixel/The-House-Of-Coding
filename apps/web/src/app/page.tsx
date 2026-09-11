@@ -5,7 +5,6 @@ import {
   Bot,
   ChevronDown,
   FileCode2,
-  Folder,
   FolderOpen,
   Play,
   Plus,
@@ -52,6 +51,10 @@ function detectLanguage(filePath: string, languages: LanguageRuntime[]) {
   )?.language ?? "typescript"
 }
 
+function formatError(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback
+}
+
 export default function Home() {
   const [project, setProject] = useState<Project | null>(null)
   const [files, setFiles] = useState<WorkspaceFile[]>([])
@@ -65,7 +68,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
-  const [status, setStatus] = useState("Loading workspace")
+  const [status, setStatus] = useState("Connecting to workspace")
 
   const selectedRuntime = useMemo(
     () => languages.find(item => item.language === selectedLanguage),
@@ -75,16 +78,20 @@ export default function Home() {
   async function refreshWorkspace() {
     setStatus("Refreshing workspace")
 
-    const [projectData, fileData, languageData] = await Promise.all([
-      getProjects(),
-      getProjectFiles(PROJECT_ID),
-      getLanguages()
-    ])
+    try {
+      const [projectData, fileData, languageData] = await Promise.all([
+        getProjects(),
+        getProjectFiles(PROJECT_ID),
+        getLanguages()
+      ])
 
-    setProject(projectData.projects[0] ?? null)
-    setFiles(fileData.files)
-    setLanguages(languageData.languages)
-    setStatus("Ready")
+      setProject(projectData.projects[0] ?? null)
+      setFiles(fileData.files)
+      setLanguages(languageData.languages)
+      setStatus("Ready")
+    } catch (error) {
+      setStatus(formatError(error, "Workspace unavailable"))
+    }
   }
 
   async function openFile(path: string) {
@@ -95,9 +102,10 @@ export default function Home() {
       setSelectedFile(path)
       setCode(result.content)
       setSelectedLanguage(detectLanguage(path, languages))
+      setOutput("")
       setStatus("Ready")
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Unable to open file")
+      setStatus(formatError(error, "Unable to open file"))
     }
   }
 
@@ -109,11 +117,9 @@ export default function Home() {
 
     try {
       await saveProjectFile(PROJECT_ID, selectedFile, code)
-      const fileData = await getProjectFiles(PROJECT_ID)
-      setFiles(fileData.files)
       setStatus("Saved")
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Save failed")
+      setStatus(formatError(error, "Save failed"))
     } finally {
       setSaving(false)
     }
@@ -127,14 +133,12 @@ export default function Home() {
 
     try {
       await saveProjectFile(PROJECT_ID, selectedFile, code)
-      setOutput("Saved. Executing...\n")
-
       const result = await executeFile({
         language: selectedLanguage,
         filePath: selectedFile
       })
 
-      const lines = [
+      setOutput([
         `Command: ${result.result.command}`,
         `Exit code: ${result.result.exitCode}`,
         `Duration: ${result.result.durationMs} ms`,
@@ -144,12 +148,11 @@ export default function Home() {
         "",
         "STDERR:",
         result.result.stderr || "(none)"
-      ]
+      ].join("\n"))
 
-      setOutput(lines.join("\n"))
       setStatus(result.result.success ? "Execution successful" : "Execution failed")
     } catch (error) {
-      setOutput(error instanceof Error ? error.message : "Execution failed")
+      setOutput(formatError(error, "Execution failed"))
       setStatus("Execution failed")
     } finally {
       setRunning(false)
@@ -176,15 +179,15 @@ export default function Home() {
         apply: true
       })
 
-      const response = result.result.response ?? "No response returned."
+      const changedFiles = result.result.files?.length
+        ? `\n\nChanged files:\n${result.result.files.join("\n")}`
+        : ""
 
       setMessages(current => [
         ...current,
         {
           role: "assistant",
-          content: result.result.files?.length
-            ? `${response}\n\nChanged files:\n${result.result.files.join("\n")}`
-            : response
+          content: `${result.result.response ?? "No response returned."}${changedFiles}`
         }
       ])
 
@@ -195,9 +198,7 @@ export default function Home() {
         ...current,
         {
           role: "assistant",
-          content: error instanceof Error
-            ? error.message
-            : "Unable to reach the Coding Agent."
+          content: formatError(error, "Unable to reach the Coding Agent.")
         }
       ])
     } finally {
@@ -206,9 +207,7 @@ export default function Home() {
   }
 
   useEffect(() => {
-    refreshWorkspace().catch(error => {
-      setStatus(error instanceof Error ? error.message : "Workspace unavailable")
-    })
+    void refreshWorkspace()
   }, [])
 
   return (
@@ -236,6 +235,7 @@ export default function Home() {
           <AutonomousControls
             language={selectedLanguage}
             filePath={selectedFile}
+            instruction={prompt}
             onOutput={setOutput}
           />
 
@@ -273,7 +273,7 @@ export default function Home() {
             <Save size={17} />
           </button>
 
-          <button className="rounded-lg border border-neutral-800 p-2 text-neutral-400 hover:text-white">
+          <button className="rounded-lg border border-neutral-800 p-2 text-neutral-400 hover:text-white" title="Settings">
             <Settings size={17} />
           </button>
         </div>
@@ -356,7 +356,7 @@ export default function Home() {
               <div className="rounded-xl border border-dashed border-neutral-800 p-5">
                 <div className="mb-2 text-sm font-medium">Ready to code</div>
                 <div className="text-xs leading-5 text-neutral-500">
-                  Use Code for direct changes or Auto for the bounded code → execute → debug → retry → test loop.
+                  Describe the change below. The selected agent action can inspect the live workspace and operate on the selected file.
                 </div>
               </div>
             ) : (
