@@ -47,6 +47,12 @@ export type ExecutionResult = {
   success: boolean
 }
 
+export type AgentResult = {
+  provider: string
+  model: string
+  content: string
+}
+
 export function getProjects() {
   return request<{ success: boolean; projects: Project[] }>("/projects")
 }
@@ -99,6 +105,27 @@ export function executeFile(input: { language: string; filePath: string; args?: 
   })
 }
 
+export function analyzeTests(input: { path: string; language?: string }) {
+  return request<{ success: boolean; path: string; result: AgentResult }>("/test/analyze", {
+    method: "POST",
+    body: JSON.stringify(input)
+  })
+}
+
+export function debugCode(input: { error: string; code?: string; language?: string }) {
+  return request<{ success: boolean; result: AgentResult }>("/debug", {
+    method: "POST",
+    body: JSON.stringify(input)
+  })
+}
+
+export function reviewCode(input: { path?: string; code?: string; language?: string }) {
+  return request<{ success: boolean; path: string | null; result: AgentResult }>("/review", {
+    method: "POST",
+    body: JSON.stringify(input)
+  })
+}
+
 export function runAutonomous(input: {
   instruction: string
   language: string
@@ -116,16 +143,8 @@ export function runAutonomous(input: {
         message: string
       }>
       execution?: ExecutionResult
-      tests?: {
-        provider: string
-        model: string
-        content: string
-      }
-      debug?: {
-        provider: string
-        model: string
-        content: string
-      }
+      tests?: AgentResult
+      debug?: AgentResult
     }
   }>("/autonomous", {
     method: "POST",
