@@ -16,6 +16,7 @@ import {
   Terminal,
   Wand2
 } from "lucide-react"
+import { AutonomousControls } from "../components/autonomous-controls"
 import {
   executeFile,
   generateCode,
@@ -46,11 +47,9 @@ function detectLanguage(filePath: string, languages: LanguageRuntime[]) {
     ? `.${filePath.split(".").pop()}`.toLowerCase()
     : ""
 
-  return (
-    languages.find(runtime =>
-      runtime.extensions.some(item => item.toLowerCase() === extension)
-    )?.language ?? "typescript"
-  )
+  return languages.find(runtime =>
+    runtime.extensions.some(item => item.toLowerCase() === extension)
+  )?.language ?? "typescript"
 }
 
 export default function Home() {
@@ -95,8 +94,7 @@ export default function Home() {
       const result = await getProjectFile(PROJECT_ID, path)
       setSelectedFile(path)
       setCode(result.content)
-      const detected = detectLanguage(path, languages)
-      setSelectedLanguage(detected)
+      setSelectedLanguage(detectLanguage(path, languages))
       setStatus("Ready")
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to open file")
@@ -222,13 +220,11 @@ export default function Home() {
           </div>
           <div>
             <div className="text-sm font-semibold tracking-wide">THE HOUSE OF CODING</div>
-            <div className="text-xs text-neutral-500">
-              {project?.name ?? "Workspace"}
-            </div>
+            <div className="text-xs text-neutral-500">{project?.name ?? "Workspace"}</div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => void refreshWorkspace()}
             className="rounded-lg border border-neutral-800 p-2 text-neutral-400 hover:text-white"
@@ -236,6 +232,12 @@ export default function Home() {
           >
             <RefreshCw size={16} />
           </button>
+
+          <AutonomousControls
+            language={selectedLanguage}
+            filePath={selectedFile}
+            onOutput={setOutput}
+          />
 
           <div className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2">
             <span className="text-xs text-neutral-500">Language</span>
@@ -284,11 +286,9 @@ export default function Home() {
             <Plus size={16} className="text-neutral-600" />
           </div>
 
-          <div className="border-b border-neutral-800 px-4 py-3 text-xs text-neutral-500">
-            {status}
-          </div>
+          <div className="border-b border-neutral-800 px-4 py-3 text-xs text-neutral-500">{status}</div>
 
-          <div className="space-y-1 p-3 text-sm">
+          <div className="space-y-1 overflow-auto p-3 text-sm">
             <div className="flex items-center gap-2 rounded-md px-2 py-2 text-neutral-200">
               <FolderOpen size={16} />
               {project?.name ?? "the-house-of-coding"}
@@ -356,7 +356,7 @@ export default function Home() {
               <div className="rounded-xl border border-dashed border-neutral-800 p-5">
                 <div className="mb-2 text-sm font-medium">Ready to code</div>
                 <div className="text-xs leading-5 text-neutral-500">
-                  The agent now works against the real repository workspace.
+                  Use Code for direct changes or Auto for the bounded code → execute → debug → retry → test loop.
                 </div>
               </div>
             ) : (
