@@ -19,6 +19,7 @@ export function AutonomousControls({
   instruction,
   selection,
   onOutput,
+  onProposal,
   onFilesChanged
 }: {
   language: string
@@ -27,6 +28,7 @@ export function AutonomousControls({
   instruction: string
   selection?: string
   onOutput: (value: string, action?: AgentAction) => void
+  onProposal?: (proposal: { changes: Array<{ path: string; content: string }>; action: AgentAction; summary: string }) => void
   onFilesChanged?: () => void
 }) {
   const [running, setRunning] = useState<AgentAction | null>(null)
@@ -49,13 +51,17 @@ export function AutonomousControls({
           instruction: `${task}\n\nFocus on the selected file when possible: ${filePath}${action === "refactor" ? "\n\nRefactor the selected code for clarity, maintainability, and correctness while preserving behavior." : ""}`,
           language,
           projectId: "house",
-          apply: true
+          apply: false
         })
         const files = result.result.files?.length
           ? `\n\nChanged files:\n${result.result.files.join("\n")}`
           : ""
-        onOutput(`${result.result.response ?? "No response returned."}${files}`, action)
-        onFilesChanged?.()
+        if (result.result.changes?.length) {
+          onProposal?.({ changes: result.result.changes, action, summary: result.result.response ?? "AI proposed changes." })
+          onOutput(`Proposal ready: ${result.result.changes.length} file change(s). Review the diff before applying.`, action)
+        } else {
+          onOutput(`${result.result.response ?? "No response returned."}${files}`, action)
+        }
         return
       }
 
