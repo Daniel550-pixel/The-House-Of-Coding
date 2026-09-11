@@ -100,6 +100,7 @@ Return ONLY valid JSON:
             return {
                 applied: false,
                 parsed: false,
+                changes: [],
                 response: response.content
             }
         }
@@ -119,6 +120,8 @@ Return ONLY valid JSON:
 
         return {
             applied: task.apply !== false,
+            parsed: true,
+            changes,
             files: applied,
             response: response.content
         }
