@@ -1,42 +1,37 @@
 ﻿import { Router } from "express"
 import {
-    execution,
+    testerAgent,
     workspace
 } from "../services/house"
 
 const router = Router()
 
-router.post("/", async (req, res) => {
+router.post("/analyze", async (req, res) => {
     try {
         const {
-            language,
-            filePath,
-            args
+            path,
+            language
         } = req.body ?? {}
 
-        if (!language || !filePath) {
+        if (!path) {
             return res.status(400).json({
                 success: false,
-                error: "language and filePath are required"
+                error: "path is required"
             })
         }
 
-        const absolute =
-            workspace.resolveSafe(
-                filePath
-            )
+        const code =
+            await workspace.readFile(path)
 
         const result =
-            await execution.execute({
-                language,
-                filePath: absolute,
-                workingDirectory:
-                    workspace.root,
-                args
+            await testerAgent.analyze({
+                code,
+                language
             })
 
         res.json({
             success: true,
+            path,
             result
         })
     } catch (error) {
@@ -44,7 +39,7 @@ router.post("/", async (req, res) => {
             success: false,
             error: error instanceof Error
                 ? error.message
-                : "Execution failed"
+                : "Test analysis failed"
         })
     }
 })

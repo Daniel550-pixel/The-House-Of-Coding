@@ -1,8 +1,11 @@
 ﻿export * from "./llm"
 export * from "./llm/types"
-export * from "./llm/providers/development"
 
-export * from "./agents/coding-agent"
+export { OpenAIProvider } from "./llm/providers/openai"
+export { DevelopmentLLMProvider } from "./llm/providers/development"
+
+export * from "./agents"
+export * from "./projects"
 
 export * from "./execution"
 export * from "./execution/runtimes/registry"

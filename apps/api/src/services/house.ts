@@ -1,16 +1,34 @@
 ﻿import {
     LLMRouter,
-    DevelopmentLLMProvider,
+    OpenAIProvider,
     RuntimeRegistry,
     ExecutionEngine,
-    HouseOrchestrator
+    HouseOrchestrator,
+    ProjectService,
+    CodingAgent,
+    DebuggerAgent,
+    TesterAgent,
+    ReviewerAgent
 } from "../../../../core"
 
 const llm = new LLMRouter()
 
-llm.register(DevelopmentLLMProvider)
+llm.register(OpenAIProvider)
 
-const runtimes = new RuntimeRegistry()
+const projectRoot =
+    process.cwd().replace(
+        /[\\\/]apps[\\\/]api$/,
+        ""
+    )
+
+const projectService =
+    new ProjectService(projectRoot)
+
+const workspace =
+    projectService.workspace
+
+const runtimes =
+    new RuntimeRegistry()
 
 runtimes.register({
     language: "python",
@@ -60,14 +78,74 @@ runtimes.register({
     command: "swift"
 })
 
-export const execution = new ExecutionEngine(runtimes)
+runtimes.register({
+    language: "java",
+    extensions: [".java"],
+    command: "java"
+})
 
-export const house = new HouseOrchestrator(
+runtimes.register({
+    language: "c",
+    extensions: [".c"],
+    command: "gcc"
+})
+
+runtimes.register({
+    language: "cpp",
+    extensions: [".cpp", ".cc", ".cxx"],
+    command: "g++"
+})
+
+runtimes.register({
+    language: "csharp",
+    extensions: [".cs"],
+    command: "dotnet"
+})
+
+runtimes.register({
+    language: "kotlin",
+    extensions: [".kt", ".kts"],
+    command: "kotlinc"
+})
+
+const execution =
+    new ExecutionEngine(runtimes)
+
+const house =
+    new HouseOrchestrator(
+        llm,
+        execution,
+        workspace
+    )
+
+const codingAgent =
+    new CodingAgent(
+        llm,
+        workspace
+    )
+
+const debuggerAgent =
+    new DebuggerAgent(llm)
+
+const testerAgent =
+    new TesterAgent(llm)
+
+const reviewerAgent =
+    new ReviewerAgent(llm)
+
+export {
     llm,
-    execution
-)
+    runtimes,
 
-export const runtimeRegistry = runtimes
+    // Compatibility alias for existing routes
+    runtimes as runtimeRegistry,
 
-
-
+    execution,
+    house,
+    projectService,
+    workspace,
+    codingAgent,
+    debuggerAgent,
+    testerAgent,
+    reviewerAgent
+}

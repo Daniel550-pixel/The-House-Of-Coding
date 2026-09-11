@@ -1,7 +1,6 @@
 ﻿import { Router } from "express"
 import {
-    codingAgent,
-    projectService
+    debuggerAgent
 } from "../services/house"
 
 const router = Router()
@@ -9,33 +8,27 @@ const router = Router()
 router.post("/", async (req, res) => {
     try {
         const {
-            instruction,
-            language,
-            apply,
-            projectId = "house"
+            error,
+            code,
+            language
         } = req.body ?? {}
 
-        if (!instruction) {
+        if (!error) {
             return res.status(400).json({
                 success: false,
-                error: "instruction is required"
+                error: "error is required"
             })
         }
 
-        projectService.getProject(
-            projectId
-        )
-
         const result =
-            await codingAgent.execute({
-                instruction,
-                language,
-                apply: apply !== false
+            await debuggerAgent.diagnose({
+                error,
+                code,
+                language
             })
 
         res.json({
             success: true,
-            project: projectId,
             result
         })
     } catch (error) {
@@ -43,7 +36,7 @@ router.post("/", async (req, res) => {
             success: false,
             error: error instanceof Error
                 ? error.message
-                : "Coding Agent failed"
+                : "Debugger failed"
         })
     }
 })
