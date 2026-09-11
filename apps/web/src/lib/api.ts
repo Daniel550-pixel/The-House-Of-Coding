@@ -53,6 +53,13 @@ export type AgentResult = {
   content: string
 }
 
+export type SearchResult = {
+  path: string
+  line: number
+  column: number
+  text: string
+}
+
 export function getProjects() {
   return request<{ success: boolean; projects: Project[] }>("/projects")
 }
@@ -71,6 +78,22 @@ export function saveProjectFile(projectId: string, path: string, content: string
     method: "POST",
     body: JSON.stringify({ path, content })
   })
+}
+
+export function searchProject(input: { projectId?: string; query: string }) {
+  const query = new URLSearchParams({
+    projectId: input.projectId ?? "house",
+    q: input.query
+  })
+
+  return request<{
+    success: boolean
+    project: string
+    query: string
+    count: number
+    truncated: boolean
+    results: SearchResult[]
+  }>(`/search?${query.toString()}`)
 }
 
 export function getLanguages() {
