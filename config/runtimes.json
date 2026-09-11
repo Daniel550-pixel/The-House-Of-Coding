@@ -1,0 +1,69 @@
+﻿{
+  "runtimes": [
+    {
+      "language": "python",
+      "extensions": [".py"],
+      "command": "python"
+    },
+    {
+      "language": "javascript",
+      "extensions": [".js", ".mjs", ".cjs"],
+      "command": "node"
+    },
+    {
+      "language": "typescript",
+      "extensions": [".ts", ".tsx"],
+      "command": "npx tsx"
+    },
+    {
+      "language": "c",
+      "extensions": [".c"],
+      "command": "gcc"
+    },
+    {
+      "language": "cpp",
+      "extensions": [".cpp", ".cc", ".cxx"],
+      "command": "g++"
+    },
+    {
+      "language": "java",
+      "extensions": [".java"],
+      "command": "java"
+    },
+    {
+      "language": "csharp",
+      "extensions": [".cs"],
+      "command": "dotnet"
+    },
+    {
+      "language": "rust",
+      "extensions": [".rs"],
+      "command": "cargo"
+    },
+    {
+      "language": "go",
+      "extensions": [".go"],
+      "command": "go"
+    },
+    {
+      "language": "php",
+      "extensions": [".php"],
+      "command": "php"
+    },
+    {
+      "language": "ruby",
+      "extensions": [".rb"],
+      "command": "ruby"
+    },
+    {
+      "language": "swift",
+      "extensions": [".swift"],
+      "command": "swift"
+    },
+    {
+      "language": "kotlin",
+      "extensions": [".kt", ".kts"],
+      "command": "kotlinc"
+    }
+  ]
+}
