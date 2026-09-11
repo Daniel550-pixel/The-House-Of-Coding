@@ -1,0 +1,74 @@
+﻿{
+  "languages": {
+    "python": {
+      "extensions": [".py"],
+      "runtime": "python",
+      "packageManager": "pip",
+      "formatter": "ruff",
+      "testRunner": "pytest"
+    },
+    "javascript": {
+      "extensions": [".js", ".mjs", ".cjs"],
+      "runtime": "node",
+      "packageManager": "npm",
+      "formatter": "prettier"
+    },
+    "typescript": {
+      "extensions": [".ts", ".tsx"],
+      "runtime": "node",
+      "packageManager": "npm",
+      "formatter": "prettier"
+    },
+    "java": {
+      "extensions": [".java"],
+      "runtime": "java",
+      "packageManager": "maven"
+    },
+    "c": {
+      "extensions": [".c"],
+      "runtime": "gcc"
+    },
+    "cpp": {
+      "extensions": [".cpp", ".cc", ".cxx"],
+      "runtime": "g++"
+    },
+    "csharp": {
+      "extensions": [".cs"],
+      "runtime": "dotnet"
+    },
+    "rust": {
+      "extensions": [".rs"],
+      "runtime": "cargo",
+      "formatter": "rustfmt",
+      "testRunner": "cargo test"
+    },
+    "go": {
+      "extensions": [".go"],
+      "runtime": "go",
+      "formatter": "gofmt",
+      "testRunner": "go test"
+    },
+    "php": {
+      "extensions": [".php"],
+      "runtime": "php",
+      "packageManager": "composer"
+    },
+    "ruby": {
+      "extensions": [".rb"],
+      "runtime": "ruby",
+      "packageManager": "gem"
+    },
+    "swift": {
+      "extensions": [".swift"],
+      "runtime": "swift"
+    },
+    "kotlin": {
+      "extensions": [".kt", ".kts"],
+      "runtime": "kotlinc"
+    },
+    "sql": {
+      "extensions": [".sql"],
+      "runtime": "database"
+    }
+  }
+}
