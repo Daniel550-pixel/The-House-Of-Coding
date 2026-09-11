@@ -1,12 +1,40 @@
-﻿node_modules/
+# Dependencies
+node_modules/
+
+# Next.js
 .next/
+out/
+
+# Build output
 dist/
 build/
 coverage/
+
+# Environment / secrets
 .env
 .env.*
 !.env.example
+
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Local runtime/test output
+tests/runtime/.cache/
+
+# Temporary files
+*.tmp
+*.temp
