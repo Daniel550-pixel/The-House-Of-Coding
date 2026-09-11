@@ -11,6 +11,6 @@
     "api": "npm --prefix apps/api run dev"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^10.0.5"
   }
 }
