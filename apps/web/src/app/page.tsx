@@ -286,6 +286,8 @@ export default function Home() {
 
   useEffect(() => setEditorMatchIndex(0), [editorQuery, selectedFile])
 
+  useEffect(() => setSelection({ start: 0, end: 0 }), [selectedFile])
+
   useEffect(() => {
     if (editorSearchOpen) requestAnimationFrame(() => editorSearchRef.current?.focus())
   }, [editorSearchOpen])
