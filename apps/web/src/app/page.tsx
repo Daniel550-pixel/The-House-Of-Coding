@@ -212,6 +212,7 @@ export default function Home() {
   const [languages, setLanguages] = useState<LanguageRuntime[]>([])
   const [selectedFile, setSelectedFile] = useState("")
   const [selectedLanguage, setSelectedLanguage] = useState("typescript")
+  const [selection, setSelection] = useState({ start: 0, end: 0 })
   const [openTabs, setOpenTabs] = useState<OpenTab[]>([])
   const [prompt, setPrompt] = useState("")
   const [search, setSearch] = useState("")
@@ -256,6 +257,7 @@ export default function Home() {
   const activeTab = uniqueTabs.find(tab => tab.path === selectedFile)
   const code = activeTab?.content ?? ""
   const dirty = Boolean(activeTab && activeTab.content !== activeTab.savedContent)
+  const selectedCode = selection.end > selection.start ? code.slice(selection.start, selection.end) : ""
   const selectedRuntime = useMemo(
     () => languages.find(item => item.language === selectedLanguage),
     [languages, selectedLanguage]
@@ -532,7 +534,7 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => void refreshWorkspace()} className="rounded-lg border border-neutral-800 p-2 text-neutral-400 hover:text-white" title="Refresh workspace"><RefreshCw size={16} /></button>
-          <AutonomousControls language={selectedLanguage} filePath={selectedFile} code={code} instruction={prompt} onOutput={(value, action) => { setOutputKind("agent"); setLastAgentAction(action ?? null); setOutput(value) }} onFilesChanged={() => { void refreshWorkspace(); if (selectedFile) void openFile(selectedFile) }} />
+          <AutonomousControls language={selectedLanguage} filePath={selectedFile} code={code} instruction={prompt} selection={selectedCode} onOutput={(value, action) => { setOutputKind("agent"); setLastAgentAction(action ?? null); setOutput(value) }} onFilesChanged={() => { void refreshWorkspace(); if (selectedFile) void openFile(selectedFile) }} />
           <div className="hidden items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 xl:flex"><span className="text-xs text-neutral-500">Language</span><select value={selectedLanguage} onChange={event => setSelectedLanguage(event.target.value)} className="bg-transparent text-sm outline-none">{languages.map(language => <option key={language.language} value={language.language} className="bg-neutral-900">{language.language}</option>)}</select><ChevronDown size={14} /></div>
           <button onClick={() => void runCurrentFile()} disabled={running || !selectedFile} className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-black disabled:opacity-50"><Play size={15} />{running ? "Running" : "Run"}</button>
           <button onClick={() => void saveTab()} disabled={saving || !dirty} className="rounded-lg border border-neutral-800 p-2 text-neutral-300 disabled:opacity-40" title={dirty ? "Save changes" : "Saved"}><Save size={17} /></button>
@@ -624,6 +626,9 @@ export default function Home() {
               ref={editorRef}
               value={code}
               onChange={event => updateCode(event.target.value)}
+              onSelect={event => setSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
+              onKeyUp={event => setSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
+              onClick={event => setSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })}
               onKeyDown={event => {
                 if (event.key === "Tab") {
                   event.preventDefault()
