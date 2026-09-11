@@ -60,6 +60,14 @@ export type SearchResult = {
   text: string
 }
 
+export type WorkspaceSymbol = {
+  name: string
+  kind: "function" | "class" | "interface" | "type" | "variable" | "method"
+  line: number
+  column: number
+  path: string
+}
+
 export function getProjects() {
   return request<{ success: boolean; projects: Project[] }>("/projects")
 }
@@ -94,6 +102,19 @@ export function searchProject(input: { projectId?: string; query: string }) {
     truncated: boolean
     results: SearchResult[]
   }>(`/search?${query.toString()}`)
+}
+
+export function getWorkspaceSymbols(input: { projectId?: string; path?: string }) {
+  const query = new URLSearchParams({ projectId: input.projectId ?? "house" })
+  if (input.path) query.set("path", input.path)
+
+  return request<{
+    success: boolean
+    project: string
+    path?: string
+    count: number
+    symbols: WorkspaceSymbol[]
+  }>(`/symbols?${query.toString()}`)
 }
 
 export function getLanguages() {
