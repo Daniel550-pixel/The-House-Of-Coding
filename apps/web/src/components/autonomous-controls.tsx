@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { BrainCircuit, Bug, CheckCircle2, Code2, FlaskConical, ShieldCheck } from "lucide-react"
+import { BrainCircuit, Bug, CheckCircle2, Code2, FlaskConical, ShieldCheck, WandSparkles } from "lucide-react"
 import {
   analyzeTests,
   debugCode,
@@ -10,13 +10,14 @@ import {
   runAutonomous
 } from "../lib/api"
 
-export type AgentAction = "code" | "debug" | "test" | "review" | "auto"
+export type AgentAction = "code" | "debug" | "test" | "review" | "refactor" | "auto"
 
 export function AutonomousControls({
   language,
   filePath,
   code,
   instruction,
+  selection,
   onOutput,
   onFilesChanged
 }: {
@@ -24,6 +25,7 @@ export function AutonomousControls({
   filePath: string
   code: string
   instruction: string
+  selection?: string
   onOutput: (value: string, action?: AgentAction) => void
   onFilesChanged?: () => void
 }) {
@@ -33,14 +35,18 @@ export function AutonomousControls({
     if (running) return
 
     setRunning(action)
-    const task = instruction.trim() || "Inspect the current file and improve it without breaking its behavior."
+    const baseTask = instruction.trim() || "Inspect the current file and improve it without breaking its behavior."
+    const selectedContext = selection?.trim()
+      ? `\n\nThe user selected this exact code. Treat it as the primary scope for this action:\n---\n${selection}\n---`
+      : ""
+    const task = `${baseTask}${selectedContext}`
 
     try {
       onOutput(`Starting ${action.toUpperCase()} agent...\n`, action)
 
-      if (action === "code") {
+      if (action === "code" || action === "refactor") {
         const result = await generateCode({
-          instruction: `${task}\n\nFocus on the selected file when possible: ${filePath}`,
+          instruction: `${task}\n\nFocus on the selected file when possible: ${filePath}${action === "refactor" ? "\n\nRefactor the selected code for clarity, maintainability, and correctness while preserving behavior." : ""}`,
           language,
           projectId: "house",
           apply: true
@@ -105,6 +111,7 @@ export function AutonomousControls({
     { id: "debug", label: "Debug", icon: Bug },
     { id: "test", label: "Test", icon: FlaskConical },
     { id: "review", label: "Review", icon: ShieldCheck },
+    { id: "refactor", label: "Refactor", icon: WandSparkles },
     { id: "auto", label: "Auto", icon: BrainCircuit }
   ]
 
