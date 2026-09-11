@@ -1,12 +1,14 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
+  AlertTriangle,
   Bot,
   ChevronDown,
   ChevronRight,
   FileCode2,
   FolderOpen,
+  Hash,
   Play,
   RefreshCw,
   Save,
@@ -17,7 +19,7 @@ import {
   X,
   Wand2
 } from "lucide-react"
-import { AutonomousControls } from "../components/autonomous-controls"
+import { AutonomousControls, type AgentAction } from "../components/autonomous-controls"
 import {
   executeFile,
   generateCode,
@@ -47,6 +49,13 @@ type OpenTab = {
   path: string
   content: string
   savedContent: string
+}
+
+type Diagnostic = {
+  line: number
+  column?: number
+  source?: string
+  message: string
 }
 
 const PROJECT_ID = "house"
@@ -96,6 +105,46 @@ function buildTree(files: WorkspaceFile[]): TreeNode[] {
 
 function lineNumbers(value: string) {
   return value.split("\n").map((_, index) => index + 1)
+}
+
+function lineStartIndex(value: string, line: number) {
+  if (line <= 1) return 0
+  let currentLine = 1
+  for (let index = 0; index < value.length; index += 1) {
+    if (value[index] === "\n") {
+      currentLine += 1
+      if (currentLine === line) return index + 1
+    }
+  }
+  return value.length
+}
+
+function parseDiagnostics(value: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = []
+  const seen = new Set<string>()
+
+  const patterns = [
+    /^(.+?):(\d+):(\d+):\s*(?:error|warning)?\s*:??\s*(.+)$/gm,
+    /^(.+?):(\d+):\s*(?:error|warning)?\s*:??\s*(.+)$/gm,
+    /^(.+?)\((\d+),(\d+)\):\s*(.+)$/gm
+  ]
+
+  for (const pattern of patterns) {
+    for (const match of value.matchAll(pattern)) {
+      const source = match[1]?.trim()
+      const line = Number(match[2])
+      const column = match[3] ? Number(match[3]) : undefined
+      const message = (match[4] ?? "").trim()
+      if (!Number.isInteger(line) || line < 1 || !message) continue
+
+      const key = `${source}:${line}:${column ?? ""}:${message}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      diagnostics.push({ line, column, source, message })
+    }
+  }
+
+  return diagnostics.slice(0, 12)
 }
 
 function AgentTreeNode({
@@ -163,13 +212,22 @@ export default function Home() {
   const [openTabs, setOpenTabs] = useState<OpenTab[]>([])
   const [prompt, setPrompt] = useState("")
   const [search, setSearch] = useState("")
+  const [editorSearchOpen, setEditorSearchOpen] = useState(false)
+  const [editorQuery, setEditorQuery] = useState("")
+  const [editorMatchIndex, setEditorMatchIndex] = useState(0)
+  const [goToLineOpen, setGoToLineOpen] = useState(false)
+  const [goToLineValue, setGoToLineValue] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
   const [output, setOutput] = useState("")
   const [outputKind, setOutputKind] = useState<"execution" | "agent" | "system">("system")
+  const [lastAgentAction, setLastAgentAction] = useState<AgentAction | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
   const [status, setStatus] = useState("Connecting to workspace")
+  const editorRef = useRef<HTMLTextAreaElement | null>(null)
+  const editorSearchRef = useRef<HTMLInputElement | null>(null)
+  const goToLineRef = useRef<HTMLInputElement | null>(null)
 
   const filteredFiles = useMemo(
     () => search.trim()
@@ -186,6 +244,59 @@ export default function Home() {
     [languages, selectedLanguage]
   )
   const numbers = useMemo(() => lineNumbers(code), [code])
+  const editorMatches = useMemo(() => {
+    if (!editorQuery) return []
+    const source = code.toLocaleLowerCase()
+    const query = editorQuery.toLocaleLowerCase()
+    const matches: number[] = []
+    let cursor = 0
+    while (cursor < source.length) {
+      const index = source.indexOf(query, cursor)
+      if (index === -1) break
+      matches.push(index)
+      cursor = index + Math.max(query.length, 1)
+    }
+    return matches
+  }, [code, editorQuery])
+  const diagnostics = useMemo(() => parseDiagnostics(output), [output])
+
+  useEffect(() => {
+    setEditorMatchIndex(0)
+  }, [editorQuery, selectedFile])
+
+  useEffect(() => {
+    if (editorSearchOpen) requestAnimationFrame(() => editorSearchRef.current?.focus())
+  }, [editorSearchOpen])
+
+  useEffect(() => {
+    if (goToLineOpen) requestAnimationFrame(() => goToLineRef.current?.focus())
+  }, [goToLineOpen])
+
+  function selectEditorMatch(index: number) {
+    if (!editorMatches.length) return
+    const normalized = (index + editorMatches.length) % editorMatches.length
+    setEditorMatchIndex(normalized)
+    const start = editorMatches[normalized]
+    const end = start + editorQuery.length
+    requestAnimationFrame(() => {
+      editorRef.current?.focus()
+      editorRef.current?.setSelectionRange(start, end)
+    })
+  }
+
+  function goToLine() {
+    const target = Number(goToLineValue)
+    if (!Number.isInteger(target) || target < 1 || !selectedFile) return
+    const safeLine = Math.min(target, numbers.length)
+    const index = lineStartIndex(code, safeLine)
+    setGoToLineOpen(false)
+    setGoToLineValue("")
+    requestAnimationFrame(() => {
+      editorRef.current?.focus()
+      editorRef.current?.setSelectionRange(index, index)
+    })
+    setStatus(`Line ${safeLine}`)
+  }
 
   async function refreshWorkspace() {
     setStatus("Refreshing workspace")
@@ -264,6 +375,7 @@ export default function Home() {
     setRunning(true)
     setOutput("Saving current file...\n")
     setOutputKind("execution")
+    setLastAgentAction(null)
     try {
       await saveTab(selectedFile)
       const result = await executeFile({ language: selectedLanguage, filePath: selectedFile })
@@ -290,6 +402,7 @@ export default function Home() {
       await refreshWorkspace()
       if (selectedFile) await openFile(selectedFile)
       setOutputKind("agent")
+      setLastAgentAction("code")
       setOutput(result.result.response ?? "Coding Agent completed.")
     } catch (error) {
       setMessages(current => [...current, { role: "assistant", content: formatError(error, "Unable to reach the Coding Agent.") }])
@@ -313,7 +426,18 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => void refreshWorkspace()} className="rounded-lg border border-neutral-800 p-2 text-neutral-400 hover:text-white" title="Refresh workspace"><RefreshCw size={16} /></button>
-          <AutonomousControls language={selectedLanguage} filePath={selectedFile} code={code} instruction={prompt} onOutput={value => { setOutputKind("agent"); setOutput(value) }} onFilesChanged={() => { void refreshWorkspace(); if (selectedFile) void openFile(selectedFile) }} />
+          <AutonomousControls
+            language={selectedLanguage}
+            filePath={selectedFile}
+            code={code}
+            instruction={prompt}
+            onOutput={(value, action) => {
+              setOutputKind("agent")
+              setLastAgentAction(action ?? null)
+              setOutput(value)
+            }}
+            onFilesChanged={() => { void refreshWorkspace(); if (selectedFile) void openFile(selectedFile) }}
+          />
           <div className="hidden items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 xl:flex"><span className="text-xs text-neutral-500">Language</span><select value={selectedLanguage} onChange={event => setSelectedLanguage(event.target.value)} className="bg-transparent text-sm outline-none">{languages.map(language => <option key={language.language} value={language.language} className="bg-neutral-900">{language.language}</option>)}</select><ChevronDown size={14} /></div>
           <button onClick={() => void runCurrentFile()} disabled={running || !selectedFile} className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-black disabled:opacity-50"><Play size={15} />{running ? "Running" : "Run"}</button>
           <button onClick={() => void saveTab()} disabled={saving || !dirty} className="rounded-lg border border-neutral-800 p-2 text-neutral-300 disabled:opacity-40" title={dirty ? "Save changes" : "Saved"}><Save size={17} /></button>
@@ -338,11 +462,129 @@ export default function Home() {
           <div className="flex min-w-0 items-center overflow-x-auto border-b border-neutral-800 bg-neutral-950">
             {openTabs.map(tab => { const active = tab.path === selectedFile; const tabDirty = tab.content !== tab.savedContent; return <div key={tab.path} className={`group flex h-full shrink-0 items-center border-r border-neutral-800 ${active ? "bg-neutral-900" : "bg-neutral-950"}`}><button onClick={() => { setSelectedFile(tab.path); setSelectedLanguage(detectLanguage(tab.path, languages)) }} className={`flex h-full items-center gap-2 px-3 text-xs ${active ? "text-white" : "text-neutral-500 hover:text-neutral-300"}`} title={tab.path}><FileCode2 size={13} />{fileName(tab.path)}{tabDirty && <span className="h-1.5 w-1.5 rounded-full bg-neutral-500" />}</button><button onClick={() => closeTab(tab.path)} className="mr-1 rounded p-1 text-neutral-700 opacity-0 transition group-hover:opacity-100 hover:bg-neutral-800 hover:text-white" title="Close tab"><X size={12} /></button></div> })}
           </div>
-          <div className="grid min-h-0 grid-cols-[54px_minmax(0,1fr)] bg-[#0b0b0b]">
+          <div className="relative grid min-h-0 grid-cols-[54px_minmax(0,1fr)] bg-[#0b0b0b]">
             <div className="select-none overflow-hidden border-r border-neutral-900 bg-[#090909] px-3 pt-4 text-right font-mono text-xs leading-7 text-neutral-700">{numbers.map(number => <div key={number}>{number}</div>)}</div>
-            <textarea value={code} onChange={event => updateCode(event.target.value)} onKeyDown={event => { if (event.key === "Tab") { event.preventDefault(); const start = event.currentTarget.selectionStart; const end = event.currentTarget.selectionEnd; updateCode(`${code.slice(0, start)}  ${code.slice(end)}`); requestAnimationFrame(() => { event.currentTarget.selectionStart = start + 2; event.currentTarget.selectionEnd = start + 2 }) } if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); void saveTab() } if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") { event.preventDefault(); document.getElementById("file-search")?.focus() } }} spellCheck={false} wrap="off" disabled={!selectedFile} className="h-full w-full resize-none overflow-auto bg-transparent px-4 py-4 font-mono text-sm leading-7 text-neutral-200 outline-none disabled:cursor-default" aria-label={`Editor for ${selectedFile || "no file"}`} />
+            <textarea
+              ref={editorRef}
+              value={code}
+              onChange={event => updateCode(event.target.value)}
+              onKeyDown={event => {
+                if (event.key === "Tab") {
+                  event.preventDefault()
+                  const start = event.currentTarget.selectionStart
+                  const end = event.currentTarget.selectionEnd
+                  updateCode(`${code.slice(0, start)}  ${code.slice(end)}`)
+                  requestAnimationFrame(() => {
+                    event.currentTarget.selectionStart = start + 2
+                    event.currentTarget.selectionEnd = start + 2
+                  })
+                }
+                if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "f") {
+                  event.preventDefault()
+                  setEditorSearchOpen(false)
+                  document.getElementById("file-search")?.focus()
+                } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+                  event.preventDefault()
+                  setEditorSearchOpen(true)
+                }
+                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "g") {
+                  event.preventDefault()
+                  setGoToLineOpen(true)
+                }
+                if (event.key === "Escape") {
+                  setEditorSearchOpen(false)
+                  setGoToLineOpen(false)
+                }
+                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+                  event.preventDefault()
+                  void saveTab()
+                }
+              }}
+              spellCheck={false}
+              wrap="off"
+              disabled={!selectedFile}
+              className="h-full w-full resize-none overflow-auto bg-transparent px-4 py-4 font-mono text-sm leading-7 text-neutral-200 outline-none disabled:cursor-default"
+              aria-label={`Editor for ${selectedFile || "no file"}`}
+            />
+            {editorSearchOpen && (
+              <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900 p-2 shadow-2xl">
+                <Search size={14} className="text-neutral-500" />
+                <input
+                  ref={editorSearchRef}
+                  value={editorQuery}
+                  onChange={event => setEditorQuery(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      selectEditorMatch(editorMatchIndex + (event.shiftKey ? -1 : 1))
+                    }
+                    if (event.key === "Escape") setEditorSearchOpen(false)
+                  }}
+                  placeholder="Find in file"
+                  className="w-48 bg-transparent text-xs outline-none placeholder:text-neutral-600"
+                />
+                <span className="min-w-[42px] text-right text-[10px] text-neutral-500">{editorMatches.length ? `${editorMatchIndex + 1}/${editorMatches.length}` : "0/0"}</span>
+                <button onClick={() => selectEditorMatch(editorMatchIndex - 1)} disabled={!editorMatches.length} className="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-white disabled:opacity-30" title="Previous match">↑</button>
+                <button onClick={() => selectEditorMatch(editorMatchIndex + 1)} disabled={!editorMatches.length} className="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-white disabled:opacity-30" title="Next match">↓</button>
+                <button onClick={() => setEditorSearchOpen(false)} className="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-white" title="Close search"><X size={13} /></button>
+              </div>
+            )}
+            {goToLineOpen && (
+              <div className="absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900 p-2 shadow-2xl">
+                <Hash size={14} className="text-neutral-500" />
+                <input
+                  ref={goToLineRef}
+                  inputMode="numeric"
+                  value={goToLineValue}
+                  onChange={event => setGoToLineValue(event.target.value.replace(/[^0-9]/g, ""))}
+                  onKeyDown={event => {
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      goToLine()
+                    }
+                    if (event.key === "Escape") setGoToLineOpen(false)
+                  }}
+                  placeholder={`Go to line 1-${numbers.length}`}
+                  className="w-40 bg-transparent text-xs outline-none placeholder:text-neutral-600"
+                />
+                <button onClick={goToLine} disabled={!goToLineValue} className="rounded-md bg-white px-2 py-1 text-[10px] font-medium text-black disabled:opacity-30">Go</button>
+                <button onClick={() => setGoToLineOpen(false)} className="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-white"><X size={13} /></button>
+              </div>
+            )}
           </div>
-          <div className="border-t border-neutral-800"><div className="flex h-10 items-center justify-between border-b border-neutral-800 px-4 text-xs"><div className="flex items-center gap-2 text-neutral-200"><Terminal size={14} />{outputKind === "execution" ? "Terminal" : outputKind === "agent" ? "Agent Output" : "Output"}</div><span className="text-neutral-600">{selectedLanguage}</span></div><pre className="h-[calc(100%-2.5rem)] overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-5 text-neutral-400">{output || "Execution, diagnostics, tests, reviews, and autonomous events will appear here."}</pre></div>
+          <div className="border-t border-neutral-800">
+            <div className="flex h-10 items-center justify-between border-b border-neutral-800 px-4 text-xs">
+              <div className="flex items-center gap-2 text-neutral-200"><Terminal size={14} />{outputKind === "execution" ? "Terminal" : outputKind === "agent" ? "Agent Output" : "Output"}</div>
+              <div className="flex items-center gap-2">
+                {outputKind === "agent" && lastAgentAction && <span className="rounded-md border border-neutral-800 bg-neutral-900 px-2 py-1 text-[10px] uppercase tracking-widest text-neutral-500">{lastAgentAction} agent</span>}
+                <span className="text-neutral-600">{selectedLanguage}</span>
+              </div>
+            </div>
+            {diagnostics.length > 0 && (
+              <div className="max-h-20 overflow-auto border-b border-neutral-800 bg-neutral-950 px-4 py-2">
+                <div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-widest text-neutral-500"><AlertTriangle size={12} />Detected diagnostics</div>
+                <div className="space-y-1">
+                  {diagnostics.map((diagnostic, index) => (
+                    <button
+                      key={`${diagnostic.source ?? "diagnostic"}-${diagnostic.line}-${diagnostic.column ?? ""}-${index}`}
+                      onClick={() => {
+                        const indexAtLine = lineStartIndex(code, diagnostic.line)
+                        const columnOffset = Math.max((diagnostic.column ?? 1) - 1, 0)
+                        const cursor = Math.min(indexAtLine + columnOffset, code.length)
+                        editorRef.current?.focus()
+                        editorRef.current?.setSelectionRange(cursor, cursor)
+                      }}
+                      className="block w-full truncate text-left font-mono text-[10px] text-neutral-500 hover:text-neutral-200"
+                      title={diagnostic.message}
+                    >
+                      <span className="mr-2 text-neutral-700">L{diagnostic.line}{diagnostic.column ? `:${diagnostic.column}` : ""}</span>{diagnostic.message}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <pre className="h-[calc(100%-2.5rem)] overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-5 text-neutral-400">{output || "Execution, diagnostics, tests, reviews, and autonomous events will appear here."}</pre>
+          </div>
         </section>
 
         <aside className="flex min-w-0 flex-col border-l border-neutral-800">
