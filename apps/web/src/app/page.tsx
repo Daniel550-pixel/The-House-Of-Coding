@@ -83,12 +83,7 @@ function buildTree(files: WorkspaceFile[]): TreeNode[] {
       let node = current.children.find(child => child.name === part)
 
       if (!node) {
-        node = {
-          name: part,
-          path,
-          kind: isFile ? "file" : "folder",
-          children: []
-        }
+        node = { name: part, path, kind: isFile ? "file" : "folder", children: [] }
         current.children.push(node)
       }
 
@@ -133,14 +128,7 @@ function AgentTreeNode({
           <span className="truncate">{node.name}</span>
         </button>
         {expanded && node.children.map(child => (
-          <AgentTreeNode
-            key={child.path}
-            node={child}
-            depth={depth + 1}
-            selectedFile={selectedFile}
-            openTabs={openTabs}
-            onOpen={onOpen}
-          />
+          <AgentTreeNode key={child.path} node={child} depth={depth + 1} selectedFile={selectedFile} openTabs={openTabs} onOpen={onOpen} />
         ))}
       </div>
     )
@@ -183,7 +171,6 @@ export default function Home() {
   const [running, setRunning] = useState(false)
   const [status, setStatus] = useState("Connecting to workspace")
 
-  const tree = useMemo(() => buildTree(files), [files])
   const filteredFiles = useMemo(
     () => search.trim()
       ? files.filter(file => file.path.toLowerCase().includes(search.trim().toLowerCase()))
@@ -202,14 +189,8 @@ export default function Home() {
 
   async function refreshWorkspace() {
     setStatus("Refreshing workspace")
-
     try {
-      const [projectData, fileData, languageData] = await Promise.all([
-        getProjects(),
-        getProjectFiles(PROJECT_ID),
-        getLanguages()
-      ])
-
+      const [projectData, fileData, languageData] = await Promise.all([getProjects(), getProjectFiles(PROJECT_ID), getLanguages()])
       setProject(projectData.projects[0] ?? null)
       setFiles(fileData.files)
       setLanguages(languageData.languages)
@@ -229,7 +210,6 @@ export default function Home() {
     }
 
     setStatus(`Opening ${path}`)
-
     try {
       const result = await getProjectFile(PROJECT_ID, path)
       setOpenTabs(current => [...current, { path, content: result.content, savedContent: result.content }])
@@ -243,24 +223,18 @@ export default function Home() {
   }
 
   function updateCode(value: string) {
-    setOpenTabs(current => current.map(tab =>
-      tab.path === selectedFile ? { ...tab, content: value } : tab
-    ))
+    setOpenTabs(current => current.map(tab => tab.path === selectedFile ? { ...tab, content: value } : tab))
     setStatus("Unsaved changes")
   }
 
   async function saveTab(path = selectedFile) {
     const tab = openTabs.find(item => item.path === path)
     if (!tab || saving) return
-
     setSaving(true)
     setStatus(`Saving ${path}`)
-
     try {
       await saveProjectFile(PROJECT_ID, path, tab.content)
-      setOpenTabs(current => current.map(item =>
-        item.path === path ? { ...item, savedContent: item.content } : item
-      ))
+      setOpenTabs(current => current.map(item => item.path === path ? { ...item, savedContent: item.content } : item))
       setStatus("Saved")
     } catch (error) {
       setStatus(formatError(error, "Save failed"))
@@ -276,7 +250,6 @@ export default function Home() {
 
     const next = openTabs.filter(item => item.path !== path)
     setOpenTabs(next)
-
     if (selectedFile === path) {
       const nextTab = next[next.length - 1]
       setSelectedFile(nextTab?.path ?? "")
@@ -288,26 +261,13 @@ export default function Home() {
     if (!selectedFile || running) return
     const tab = openTabs.find(item => item.path === selectedFile)
     if (!tab) return
-
     setRunning(true)
     setOutput("Saving current file...\n")
     setOutputKind("execution")
-
     try {
       await saveTab(selectedFile)
       const result = await executeFile({ language: selectedLanguage, filePath: selectedFile })
-      setOutput([
-        `STATUS: ${result.result.success ? "SUCCESS" : "FAILED"}`,
-        `Command: ${result.result.command}`,
-        `Exit code: ${result.result.exitCode}`,
-        `Duration: ${result.result.durationMs} ms`,
-        "",
-        "STDOUT",
-        result.result.stdout || "(none)",
-        "",
-        "STDERR",
-        result.result.stderr || "(none)"
-      ].join("\n"))
+      setOutput([`STATUS: ${result.result.success ? "SUCCESS" : "FAILED"}`, `Command: ${result.result.command}`, `Exit code: ${result.result.exitCode}`, `Duration: ${result.result.durationMs} ms`, "", "STDOUT", result.result.stdout || "(none)", "", "STDERR", result.result.stderr || "(none)"].join("\n"))
       setStatus(result.result.success ? "Execution successful" : "Execution failed")
     } catch (error) {
       setOutput(formatError(error, "Execution failed"))
@@ -319,51 +279,29 @@ export default function Home() {
 
   async function sendPrompt() {
     if (!prompt.trim() || loading) return
-
     const instruction = prompt.trim()
     setMessages(current => [...current, { role: "user", content: instruction }])
     setPrompt("")
     setLoading(true)
-
     try {
-      const result = await generateCode({
-        instruction: `${instruction}\n\nThe currently selected file is ${selectedFile || "none"}. Preserve unrelated files unless a change is required.`,
-        language: selectedLanguage,
-        projectId: PROJECT_ID,
-        apply: true
-      })
-
-      const changedFiles = result.result.files?.length
-        ? `\n\nChanged files:\n${result.result.files.join("\n")}`
-        : ""
-
-      setMessages(current => [...current, {
-        role: "assistant",
-        content: `${result.result.response ?? "No response returned."}${changedFiles}`
-      }])
-
+      const result = await generateCode({ instruction: `${instruction}\n\nThe currently selected file is ${selectedFile || "none"}. Preserve unrelated files unless a change is required.`, language: selectedLanguage, projectId: PROJECT_ID, apply: true })
+      const changedFiles = result.result.files?.length ? `\n\nChanged files:\n${result.result.files.join("\n")}` : ""
+      setMessages(current => [...current, { role: "assistant", content: `${result.result.response ?? "No response returned."}${changedFiles}` }])
       await refreshWorkspace()
       if (selectedFile) await openFile(selectedFile)
       setOutputKind("agent")
       setOutput(result.result.response ?? "Coding Agent completed.")
     } catch (error) {
-      setMessages(current => [...current, {
-        role: "assistant",
-        content: formatError(error, "Unable to reach the Coding Agent.")
-      }])
+      setMessages(current => [...current, { role: "assistant", content: formatError(error, "Unable to reach the Coding Agent.") }])
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => {
-    void refreshWorkspace()
-  }, [])
+  useEffect(() => { void refreshWorkspace() }, [])
 
   useEffect(() => {
-    if (!selectedFile && files.some(file => file.path === DEFAULT_FILE)) {
-      void openFile(DEFAULT_FILE)
-    }
+    if (!selectedFile && files.some(file => file.path === DEFAULT_FILE)) void openFile(DEFAULT_FILE)
   }, [files, selectedFile])
 
   return (
@@ -371,29 +309,12 @@ export default function Home() {
       <header className="flex h-16 items-center justify-between border-b border-neutral-800 px-5">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-black"><Wand2 size={18} /></div>
-          <div className="min-w-0">
-            <div className="text-sm font-semibold tracking-wide">THE HOUSE OF CODING</div>
-            <div className="truncate text-xs text-neutral-500">{project?.name ?? "Workspace"}</div>
-          </div>
+          <div className="min-w-0"><div className="text-sm font-semibold tracking-wide">THE HOUSE OF CODING</div><div className="truncate text-xs text-neutral-500">{project?.name ?? "Workspace"}</div></div>
         </div>
-
         <div className="flex items-center gap-2">
           <button onClick={() => void refreshWorkspace()} className="rounded-lg border border-neutral-800 p-2 text-neutral-400 hover:text-white" title="Refresh workspace"><RefreshCw size={16} /></button>
-          <AutonomousControls
-            language={selectedLanguage}
-            filePath={selectedFile}
-            code={code}
-            instruction={prompt}
-            onOutput={value => { setOutputKind("agent"); setOutput(value) }}
-            onFilesChanged={() => { void refreshWorkspace(); if (selectedFile) void openFile(selectedFile) }}
-          />
-          <div className="hidden items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 xl:flex">
-            <span className="text-xs text-neutral-500">Language</span>
-            <select value={selectedLanguage} onChange={event => setSelectedLanguage(event.target.value)} className="bg-transparent text-sm outline-none">
-              {languages.map(language => <option key={language.language} value={language.language} className="bg-neutral-900">{language.language}</option>)}
-            </select>
-            <ChevronDown size={14} />
-          </div>
+          <AutonomousControls language={selectedLanguage} filePath={selectedFile} code={code} instruction={prompt} onOutput={value => { setOutputKind("agent"); setOutput(value) }} onFilesChanged={() => { void refreshWorkspace(); if (selectedFile) void openFile(selectedFile) }} />
+          <div className="hidden items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 xl:flex"><span className="text-xs text-neutral-500">Language</span><select value={selectedLanguage} onChange={event => setSelectedLanguage(event.target.value)} className="bg-transparent text-sm outline-none">{languages.map(language => <option key={language.language} value={language.language} className="bg-neutral-900">{language.language}</option>)}</select><ChevronDown size={14} /></div>
           <button onClick={() => void runCurrentFile()} disabled={running || !selectedFile} className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-black disabled:opacity-50"><Play size={15} />{running ? "Running" : "Run"}</button>
           <button onClick={() => void saveTab()} disabled={saving || !dirty} className="rounded-lg border border-neutral-800 p-2 text-neutral-300 disabled:opacity-40" title={dirty ? "Save changes" : "Saved"}><Save size={17} /></button>
           <button className="rounded-lg border border-neutral-800 p-2 text-neutral-400 hover:text-white" title="Settings"><Settings size={17} /></button>
@@ -403,7 +324,7 @@ export default function Home() {
       <section className="grid min-h-[calc(100vh-4rem)] grid-cols-[250px_minmax(0,1fr)_380px]">
         <aside className="min-w-0 border-r border-neutral-800">
           <div className="flex h-11 items-center justify-between border-b border-neutral-800 px-4"><span className="text-xs font-semibold uppercase tracking-widest text-neutral-500">Explorer</span><span className="text-[11px] text-neutral-600">{files.length} files</span></div>
-          <div className="border-b border-neutral-800 p-2"><div className="flex items-center gap-2 rounded-md border border-neutral-800 bg-neutral-900 px-2.5 py-2"><Search size={14} className="text-neutral-600" /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search files" className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-neutral-600" />{search && <button onClick={() => setSearch("")} className="text-neutral-600 hover:text-white"><X size={13} /></button>}</div></div>
+          <div className="border-b border-neutral-800 p-2"><div className="flex items-center gap-2 rounded-md border border-neutral-800 bg-neutral-900 px-2.5 py-2"><Search size={14} className="text-neutral-600" /><input id="file-search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search files" className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-neutral-600" />{search && <button onClick={() => setSearch("")} className="text-neutral-600 hover:text-white"><X size={13} /></button>}</div></div>
           <div className="border-b border-neutral-800 px-4 py-2 text-[11px] text-neutral-600">{status}</div>
           <div className="h-[calc(100vh-9.5rem)] overflow-auto p-2">
             <div className="mb-2 flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-200"><FolderOpen size={15} /><span className="truncate">{project?.name ?? "the-house-of-coding"}</span></div>
@@ -413,63 +334,20 @@ export default function Home() {
         </aside>
 
         <section className="grid min-w-0 grid-rows-[42px_40px_minmax(0,1fr)_220px]">
-          <div className="flex min-w-0 items-center justify-between border-b border-neutral-800 px-4">
-            <div className="flex min-w-0 items-center gap-3 text-sm"><FileCode2 size={15} /><span className="truncate">{selectedFile || "No file selected"}</span><span className="hidden text-xs text-neutral-600 md:inline">{selectedRuntime?.command ?? "runtime unavailable"}</span></div>
-            <span className={`text-xs ${dirty ? "text-neutral-300" : "text-neutral-600"}`}>{dirty ? "Unsaved" : status}</span>
-          </div>
-
+          <div className="flex min-w-0 items-center justify-between border-b border-neutral-800 px-4"><div className="flex min-w-0 items-center gap-3 text-sm"><FileCode2 size={15} /><span className="truncate">{selectedFile || "No file selected"}</span><span className="hidden text-xs text-neutral-600 md:inline">{selectedRuntime?.command ?? "runtime unavailable"}</span></div><span className={`text-xs ${dirty ? "text-neutral-300" : "text-neutral-600"}`}>{dirty ? "Unsaved" : status}</span></div>
           <div className="flex min-w-0 items-center overflow-x-auto border-b border-neutral-800 bg-neutral-950">
-            {openTabs.map(tab => {
-              const active = tab.path === selectedFile
-              const tabDirty = tab.content !== tab.savedContent
-              return <div key={tab.path} className={`group flex h-full shrink-0 items-center border-r border-neutral-800 ${active ? "bg-neutral-900" : "bg-neutral-950"}`}>
-                <button onClick={() => { setSelectedFile(tab.path); setSelectedLanguage(detectLanguage(tab.path, languages)) }} className={`flex h-full items-center gap-2 px-3 text-xs ${active ? "text-white" : "text-neutral-500 hover:text-neutral-300"}`} title={tab.path}><FileCode2 size={13} />{fileName(tab.path)}{tabDirty && <span className="h-1.5 w-1.5 rounded-full bg-neutral-500" />}</button>
-                <button onClick={() => closeTab(tab.path)} className="mr-1 rounded p-1 text-neutral-700 opacity-0 transition group-hover:opacity-100 hover:bg-neutral-800 hover:text-white" title="Close tab"><X size={12} /></button>
-              </div>
-            })}
+            {openTabs.map(tab => { const active = tab.path === selectedFile; const tabDirty = tab.content !== tab.savedContent; return <div key={tab.path} className={`group flex h-full shrink-0 items-center border-r border-neutral-800 ${active ? "bg-neutral-900" : "bg-neutral-950"}`}><button onClick={() => { setSelectedFile(tab.path); setSelectedLanguage(detectLanguage(tab.path, languages)) }} className={`flex h-full items-center gap-2 px-3 text-xs ${active ? "text-white" : "text-neutral-500 hover:text-neutral-300"}`} title={tab.path}><FileCode2 size={13} />{fileName(tab.path)}{tabDirty && <span className="h-1.5 w-1.5 rounded-full bg-neutral-500" />}</button><button onClick={() => closeTab(tab.path)} className="mr-1 rounded p-1 text-neutral-700 opacity-0 transition group-hover:opacity-100 hover:bg-neutral-800 hover:text-white" title="Close tab"><X size={12} /></button></div> })}
           </div>
-
           <div className="grid min-h-0 grid-cols-[54px_minmax(0,1fr)] bg-[#0b0b0b]">
             <div className="select-none overflow-hidden border-r border-neutral-900 bg-[#090909] px-3 pt-4 text-right font-mono text-xs leading-7 text-neutral-700">{numbers.map(number => <div key={number}>{number}</div>)}</div>
-            <textarea
-              value={code}
-              onChange={event => updateCode(event.target.value)}
-              onKeyDown={event => {
-                if (event.key === "Tab") {
-                  event.preventDefault()
-                  const start = event.currentTarget.selectionStart
-                  const end = event.currentTarget.selectionEnd
-                  updateCode(`${code.slice(0, start)}  ${code.slice(end)}`)
-                  requestAnimationFrame(() => { event.currentTarget.selectionStart = start + 2; event.currentTarget.selectionEnd = start + 2 })
-                }
-                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-                  event.preventDefault()
-                  void saveTab()
-                }
-                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
-                  event.preventDefault()
-                  document.getElementById("file-search")?.focus()
-                }
-              }}
-              spellCheck={false}
-              wrap="off"
-              disabled={!selectedFile}
-              className="h-full w-full resize-none overflow-auto bg-transparent px-4 py-4 font-mono text-sm leading-7 text-neutral-200 outline-none disabled:cursor-default"
-              aria-label={`Editor for ${selectedFile || "no file"}`}
-            />
+            <textarea value={code} onChange={event => updateCode(event.target.value)} onKeyDown={event => { if (event.key === "Tab") { event.preventDefault(); const start = event.currentTarget.selectionStart; const end = event.currentTarget.selectionEnd; updateCode(`${code.slice(0, start)}  ${code.slice(end)}`); requestAnimationFrame(() => { event.currentTarget.selectionStart = start + 2; event.currentTarget.selectionEnd = start + 2 }) } if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); void saveTab() } if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") { event.preventDefault(); document.getElementById("file-search")?.focus() } }} spellCheck={false} wrap="off" disabled={!selectedFile} className="h-full w-full resize-none overflow-auto bg-transparent px-4 py-4 font-mono text-sm leading-7 text-neutral-200 outline-none disabled:cursor-default" aria-label={`Editor for ${selectedFile || "no file"}`} />
           </div>
-
-          <div className="border-t border-neutral-800">
-            <div className="flex h-10 items-center justify-between border-b border-neutral-800 px-4 text-xs"><div className="flex items-center gap-2 text-neutral-200"><Terminal size={14} />{outputKind === "execution" ? "Terminal" : outputKind === "agent" ? "Agent Output" : "Output"}</div><span className="text-neutral-600">{selectedLanguage}</span></div>
-            <pre className="h-[calc(100%-2.5rem)] overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-5 text-neutral-400">{output || "Execution, diagnostics, tests, reviews, and autonomous events will appear here."}</pre>
-          </div>
+          <div className="border-t border-neutral-800"><div className="flex h-10 items-center justify-between border-b border-neutral-800 px-4 text-xs"><div className="flex items-center gap-2 text-neutral-200"><Terminal size={14} />{outputKind === "execution" ? "Terminal" : outputKind === "agent" ? "Agent Output" : "Output"}</div><span className="text-neutral-600">{selectedLanguage}</span></div><pre className="h-[calc(100%-2.5rem)] overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-5 text-neutral-400">{output || "Execution, diagnostics, tests, reviews, and autonomous events will appear here."}</pre></div>
         </section>
 
         <aside className="flex min-w-0 flex-col border-l border-neutral-800">
           <div className="flex items-center gap-2 border-b border-neutral-800 px-4 py-3"><Bot size={17} /><span className="text-sm font-semibold">AI Coder</span><span className="ml-auto rounded-md border border-neutral-800 px-2 py-1 text-[10px] uppercase tracking-widest text-neutral-600">Live</span></div>
-          <div className="flex-1 space-y-4 overflow-auto p-4">
-            {messages.length === 0 ? <div className="rounded-xl border border-dashed border-neutral-800 p-5"><div className="mb-2 text-sm font-medium">Ready to code</div><div className="text-xs leading-5 text-neutral-500">Describe a change, then use Code, Debug, Test, Review, or Auto against the selected file.</div></div> : messages.map((message, index) => <div key={`${message.role}-${index}`} className="rounded-xl border border-neutral-800 bg-neutral-900 p-3"><div className="mb-2 text-[10px] uppercase tracking-widest text-neutral-600">{message.role}</div><pre className="whitespace-pre-wrap font-sans text-sm leading-6 text-neutral-200">{message.content}</pre></div>)}
-          </div>
+          <div className="flex-1 space-y-4 overflow-auto p-4">{messages.length === 0 ? <div className="rounded-xl border border-dashed border-neutral-800 p-5"><div className="mb-2 text-sm font-medium">Ready to code</div><div className="text-xs leading-5 text-neutral-500">Describe a change, then use Code, Debug, Test, Review, or Auto against the selected file.</div></div> : messages.map((message, index) => <div key={`${message.role}-${index}`} className="rounded-xl border border-neutral-800 bg-neutral-900 p-3"><div className="mb-2 text-[10px] uppercase tracking-widest text-neutral-600">{message.role}</div><pre className="whitespace-pre-wrap font-sans text-sm leading-6 text-neutral-200">{message.content}</pre></div>)}</div>
           <div className="border-t border-neutral-800 p-4"><div className="rounded-xl border border-neutral-800 bg-neutral-900"><textarea value={prompt} onChange={event => setPrompt(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendPrompt() } }} placeholder="Tell the Coding Agent what to build..." className="h-24 w-full resize-none bg-transparent p-3 text-sm outline-none placeholder:text-neutral-600" /><div className="flex items-center justify-between border-t border-neutral-800 px-3 py-2"><span className="text-[11px] text-neutral-600">Enter to send · Shift+Enter for newline</span><button onClick={() => void sendPrompt()} disabled={loading || !prompt.trim()} className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-medium text-black disabled:opacity-40"><Send size={14} />{loading ? "Working..." : "Send"}</button></div></div></div>
         </aside>
       </section>
