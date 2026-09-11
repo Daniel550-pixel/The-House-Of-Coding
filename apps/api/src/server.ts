@@ -13,7 +13,7 @@ dotenv.config()
 const app = express()
 const PORT = Number(process.env.PORT ?? 4000)
 
-app.use(cors())
+app.use(cors({ origin: ["http://localhost:3000", "http://127.0.0.1:3000"] }))
 app.use(express.json({ limit: "5mb" }))
 
 app.get("/", (_req, res) => {
@@ -63,3 +63,4 @@ app.listen(PORT, "0.0.0.0", () => {
     console.log("==============================================")
     console.log("")
 })
+
