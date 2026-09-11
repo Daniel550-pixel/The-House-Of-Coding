@@ -5,6 +5,7 @@ const router = Router()
 
 const MAX_RESULTS = 100
 const MAX_FILE_SIZE = 512_000
+const IGNORED_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".zip", ".woff", ".woff2", ".ttf", ".eot"])
 
 router.get("/", async (req, res) => {
   try {
@@ -28,8 +29,8 @@ router.get("/", async (req, res) => {
       text: string
     }> = []
 
-    for (const file of files) {
-      if (file.size > MAX_FILE_SIZE) continue
+    outer: for (const file of files) {
+      if (file.size > MAX_FILE_SIZE || IGNORED_EXTENSIONS.has(file.extension.toLocaleLowerCase())) continue
 
       let content: string
       try {
@@ -41,20 +42,24 @@ router.get("/", async (req, res) => {
       const lines = content.split("\n")
       for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
         const text = lines[lineIndex] ?? ""
-        const column = text.toLocaleLowerCase().indexOf(needle)
-        if (column === -1) continue
+        const lowerText = text.toLocaleLowerCase()
+        let cursor = 0
 
-        results.push({
-          path: file.path,
-          line: lineIndex + 1,
-          column: column + 1,
-          text: text.trim().slice(0, 240)
-        })
+        while (cursor < lowerText.length) {
+          const column = lowerText.indexOf(needle, cursor)
+          if (column === -1) break
 
-        if (results.length >= MAX_RESULTS) break
+          results.push({
+            path: file.path,
+            line: lineIndex + 1,
+            column: column + 1,
+            text: text.trim().slice(0, 240)
+          })
+
+          if (results.length >= MAX_RESULTS) break outer
+          cursor = column + Math.max(needle.length, 1)
+        }
       }
-
-      if (results.length >= MAX_RESULTS) break
     }
 
     res.json({
