@@ -226,6 +226,8 @@ export default function Home() {
   const [goToLineOpen, setGoToLineOpen] = useState(false)
   const [goToLineValue, setGoToLineValue] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
+  const [proposal, setProposal] = useState<{ changes: Array<{ path: string; content: string }>; action: AgentAction; summary: string } | null>(null)
+  const [applyingProposal, setApplyingProposal] = useState(false)
   const [output, setOutput] = useState("")
   const [outputKind, setOutputKind] = useState<"execution" | "agent" | "system">("system")
   const [lastAgentAction, setLastAgentAction] = useState<AgentAction | null>(null)
@@ -443,6 +445,64 @@ export default function Home() {
     }
   }
 
+
+  async function applyProposal() {
+    if (!proposal || applyingProposal) return
+    setApplyingProposal(true)
+    try {
+      for (const change of proposal.changes) {
+        const openTab = uniqueTabs.find(tab => tab.path === change.path)
+        if (
+          openTab &&
+          openTab.content !== openTab.savedContent &&
+          !window.confirm(
+            fileName(change.path) +
+              " has unsaved local changes. Applying the AI proposal will replace them. Continue?"
+          )
+        ) {
+          setStatus("Proposal cancelled")
+          return
+        }
+
+        await saveProjectFile(PROJECT_ID, change.path, change.content)
+      }
+
+      const selectedChange = proposal.changes.find(change => change.path === selectedFile)
+      if (selectedChange) {
+        setOpenTabs(current =>
+          current.map(tab =>
+            tab.path === selectedFile
+              ? {
+                  ...tab,
+                  content: selectedChange.content,
+                  savedContent: selectedChange.content
+                }
+              : tab
+          )
+        )
+      }
+
+      const appliedCount = proposal.changes.length
+      const action = proposal.action
+      setProposal(null)
+      setStatus("Applied " + appliedCount + " file change(s)")
+      setOutputKind("agent")
+      setLastAgentAction(action)
+      setOutput("Applied " + appliedCount + " proposed file change(s).")
+      await refreshWorkspace()
+    } catch (error) {
+      setStatus(formatError(error, "Failed to apply proposal"))
+    } finally {
+      setApplyingProposal(false)
+    }
+  }
+
+  function rejectProposal() {
+    if (!proposal) return
+    setProposal(null)
+    setStatus("Proposal rejected")
+  }
+
   function updateCode(value: string) {
     setOpenTabs(current => current.map(tab => tab.path === selectedFile ? { ...tab, content: value } : tab))
     setStatus("Unsaved changes")
@@ -536,7 +596,7 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => void refreshWorkspace()} className="rounded-lg border border-neutral-800 p-2 text-neutral-400 hover:text-white" title="Refresh workspace"><RefreshCw size={16} /></button>
-          <AutonomousControls language={selectedLanguage} filePath={selectedFile} code={code} instruction={prompt} selection={selectedCode} onOutput={(value, action) => { setOutputKind("agent"); setLastAgentAction(action ?? null); setOutput(value) }} onFilesChanged={() => { void refreshWorkspace(); if (selectedFile) void openFile(selectedFile) }} />
+          <AutonomousControls language={selectedLanguage} filePath={selectedFile} code={code} instruction={prompt} selection={selectedCode} onProposal={proposal => setProposal(proposal)} onOutput={(value, action) => { setOutputKind("agent"); setLastAgentAction(action ?? null); setOutput(value) }} onFilesChanged={() => { void refreshWorkspace(); if (selectedFile) void openFile(selectedFile) }} />
           <div className="hidden items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 xl:flex"><span className="text-xs text-neutral-500">Language</span><select value={selectedLanguage} onChange={event => setSelectedLanguage(event.target.value)} className="bg-transparent text-sm outline-none">{languages.map(language => <option key={language.language} value={language.language} className="bg-neutral-900">{language.language}</option>)}</select><ChevronDown size={14} /></div>
           <button onClick={() => void runCurrentFile()} disabled={running || !selectedFile} className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-black disabled:opacity-50"><Play size={15} />{running ? "Running" : "Run"}</button>
           <button onClick={() => void saveTab()} disabled={saving || !dirty} className="rounded-lg border border-neutral-800 p-2 text-neutral-300 disabled:opacity-40" title={dirty ? "Save changes" : "Saved"}><Save size={17} /></button>
@@ -587,6 +647,88 @@ export default function Home() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {proposal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+          onMouseDown={rejectProposal}
+        >
+          <div
+            className="flex max-h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-neutral-700 bg-neutral-950 shadow-2xl"
+            onMouseDown={event => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-neutral-800 px-5 py-4">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold">AI Change Proposal</div>
+                <div className="mt-1 text-xs text-neutral-600">
+                  {proposal.action.toUpperCase()} · {proposal.changes.length} file change(s)
+                </div>
+              </div>
+              <button
+                onClick={rejectProposal}
+                disabled={applyingProposal}
+                className="rounded-md p-2 text-neutral-500 hover:bg-neutral-900 hover:text-white disabled:opacity-40"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-5">
+              <div className="mb-4 rounded-lg border border-neutral-800 bg-neutral-900/60 p-3 text-xs text-neutral-400">
+                {proposal.summary}
+              </div>
+
+              <div className="space-y-4">
+                {proposal.changes.map(change => {
+                  const current = uniqueTabs.find(tab => tab.path === change.path)?.content ?? ""
+                  return (
+                    <div key={change.path} className="overflow-hidden rounded-lg border border-neutral-800">
+                      <div className="flex items-center justify-between border-b border-neutral-800 bg-neutral-900 px-3 py-2">
+                        <span className="text-xs font-medium text-neutral-300">{change.path}</span>
+                        <span className="text-[10px] text-neutral-600">
+                          {current.split("\n").length} → {change.content.split("\n").length} lines
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 divide-x divide-neutral-800 bg-[#090909]">
+                        <div className="p-3">
+                          <div className="mb-2 text-[9px] uppercase tracking-widest text-neutral-700">Current</div>
+                          <pre className="max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-5 text-neutral-600">
+                            {current || "(file not currently open)"}
+                          </pre>
+                        </div>
+                        <div className="p-3">
+                          <div className="mb-2 text-[9px] uppercase tracking-widest text-neutral-700">Proposed</div>
+                          <pre className="max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-5 text-neutral-300">
+                            {change.content}
+                          </pre>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-neutral-800 px-5 py-3">
+              <button
+                onClick={rejectProposal}
+                disabled={applyingProposal}
+                className="rounded-lg border border-neutral-800 px-4 py-2 text-xs text-neutral-400 hover:bg-neutral-900 hover:text-white disabled:opacity-40"
+              >
+                Reject
+              </button>
+              <button
+                onClick={() => void applyProposal()}
+                disabled={applyingProposal}
+                className="rounded-lg bg-white px-4 py-2 text-xs font-medium text-black disabled:opacity-40"
+              >
+                {applyingProposal ? "Applying..." : "Accept & Apply"}
+              </button>
             </div>
           </div>
         </div>
