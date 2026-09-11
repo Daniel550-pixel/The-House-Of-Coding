@@ -70,7 +70,7 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`API:       http://localhost:${PORT}`)
   console.log(`Health:    http://localhost:${PORT}/health`)
   console.log(`Projects:  http://localhost:${PORT}/projects`)
-  console.log(`Search:    http://localhost:${PORT}/search")
+  console.log(`Search:    http://localhost:${PORT}/search`)
   console.log(`Code:      http://localhost:${PORT}/code`)
   console.log(`Execute:   http://localhost:${PORT}/execute`)
   console.log(`Test:      http://localhost:${PORT}/test`)
