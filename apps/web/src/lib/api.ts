@@ -133,6 +133,7 @@ export function generateCode(input: {
     result: {
       applied: boolean
       parsed?: boolean
+      changes?: Array<{ path: string; content: string }>
       files?: string[]
       response?: string
     }
