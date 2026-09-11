@@ -1,13 +1,16 @@
 {
-    "private":  true,
-    "name":  "the-house-of-coding",
-    "version":  "1.0.0",
-    "scripts":  {
-                    "build":  "npm run build:api \u0026\u0026 npm run build:web",
-                    "web":  "npm --prefix apps/web run dev",
-                    "build:web":  "npm --prefix apps/web run build",
-                    "build:api":  "npm --prefix apps/api run build",
-                    "dev":  "concurrently \"npm run api\" \"npm run web\"",
-                    "api":  "npm --prefix apps/api run dev"
-                }
+  "private": true,
+  "name": "the-house-of-coding",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "npm run build:api && npm run build:web",
+    "web": "npm --prefix apps/web run dev",
+    "build:web": "npm --prefix apps/web run build",
+    "build:api": "npm --prefix apps/api run build",
+    "dev": "concurrently \"npm run api\" \"npm run web\"",
+    "api": "npm --prefix apps/api run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
 }
