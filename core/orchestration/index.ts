@@ -1,34 +1,40 @@
-﻿import { LLMRouter } from "../llm"
-import { CodingAgent } from "../agents/coding-agent"
+﻿import { CodingAgent } from "../agents/coding-agent"
+import { LLMRouter } from "../llm"
 import { ExecutionEngine } from "../execution"
-import { RuntimeRegistry } from "../execution/runtimes/registry"
 
 export class HouseOrchestrator {
     readonly codingAgent: CodingAgent
 
     constructor(
-        private llm: LLMRouter,
-        private execution: ExecutionEngine
+        readonly llm: LLMRouter,
+        readonly execution: ExecutionEngine
     ) {
         this.codingAgent = new CodingAgent(llm)
     }
 
-    async code(instruction: string, language?: string) {
+    async code(
+        instruction: string,
+        language?: string,
+        projectPath?: string
+    ) {
         return this.codingAgent.execute({
             instruction,
-            language
+            language,
+            projectPath
         })
     }
 
     async execute(
         language: string,
         filePath: string,
-        workingDirectory?: string
+        workingDirectory?: string,
+        args?: string[]
     ) {
         return this.execution.execute({
             language,
             filePath,
-            workingDirectory
+            workingDirectory,
+            args
         })
     }
 }

@@ -10,13 +10,11 @@ router.get("/", (_req, res) => {
 })
 
 router.post("/", (req, res) => {
-    const {
-        name,
-        path
-    } = req.body
+    const { name, path } = req.body ?? {}
 
     if (!name) {
         return res.status(400).json({
+            success: false,
             error: "project name is required"
         })
     }

@@ -1,21 +1,8 @@
-﻿export type LLMProvider = {
+﻿import type { LLMRequest, LLMResponse } from "./types"
+
+export type LLMProvider = {
     name: string
-    generate: (prompt: string, options?: Record<string, unknown>) => Promise<unknown>
-}
-
-export type LLMRequest = {
-    prompt: string
-    model?: string
-    provider?: string
-    temperature?: number
-    system?: string
-}
-
-export type LLMResponse = {
-    provider: string
-    model: string
-    content: string
-    raw?: unknown
+    generate: (request: LLMRequest) => Promise<LLMResponse>
 }
 
 export class LLMRouter {
@@ -25,27 +12,35 @@ export class LLMRouter {
         this.providers.set(provider.name, provider)
     }
 
+    has(provider: string) {
+        return this.providers.has(provider)
+    }
+
+    providersList() {
+        return [...this.providers.keys()]
+    }
+
     async generate(request: LLMRequest): Promise<LLMResponse> {
-        const providerName = request.provider ?? "default"
-        const provider = this.providers.get(providerName)
+        if (request.provider) {
+            const selected = this.providers.get(request.provider)
 
-        if (!provider) {
-            throw new Error(`LLM provider not registered: ${providerName}`)
+            if (!selected) {
+                throw new Error(
+                    `LLM provider not registered: ${request.provider}`
+                )
+            }
+
+            return selected.generate(request)
         }
 
-        const result = await provider.generate(request.prompt, {
-            model: request.model,
-            temperature: request.temperature,
-            system: request.system
-        })
+        const first = this.providers.values().next().value as
+            | LLMProvider
+            | undefined
 
-        return {
-            provider: provider.name,
-            model: request.model ?? "default",
-            content: typeof result === "string"
-                ? result
-                : JSON.stringify(result),
-            raw: result
+        if (!first) {
+            throw new Error("No LLM providers are registered")
         }
+
+        return first.generate(request)
     }
 }

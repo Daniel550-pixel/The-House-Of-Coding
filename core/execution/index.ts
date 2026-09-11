@@ -1,15 +1,20 @@
 ﻿import { spawn } from "node:child_process"
 import { performance } from "node:perf_hooks"
+
 import type {
     ExecutionRequest,
     ExecutionResult
 } from "./results/types"
+
 import { RuntimeRegistry } from "./runtimes/registry"
 
 export class ExecutionEngine {
     constructor(private registry: RuntimeRegistry) {}
 
-    async execute(request: ExecutionRequest): Promise<ExecutionResult> {
+    async execute(
+        request: ExecutionRequest
+    ): Promise<ExecutionResult> {
+
         const runtime = this.registry.get(request.language)
 
         if (!runtime) {
@@ -18,35 +23,45 @@ export class ExecutionEngine {
             )
         }
 
-        const args = [
-            request.filePath,
-            ...(request.args ?? [])
-        ]
+        const args = [request.filePath, ...(request.args ?? [])]
+        const command = `${runtime.command} ${args.join(" ")}`
 
         const start = performance.now()
 
         return new Promise((resolve, reject) => {
-            const child = spawn(runtime.command, args, {
-                cwd: request.workingDirectory,
-                shell: true,
-                windowsHide: true
-            })
+
+            const child = spawn(
+                runtime.command,
+                args,
+                {
+                    cwd: request.workingDirectory || process.cwd(),
+                    shell: true,
+                    windowsHide: true
+                }
+            )
 
             let stdout = ""
             let stderr = ""
 
-            child.stdout.on("data", data => {
-                stdout += data.toString()
-            })
-
-            child.stderr.on("data", data => {
-                stderr += data.toString()
-            })
-
             const timeout = setTimeout(() => {
                 child.kill()
-                reject(new Error("Execution timeout"))
+
+                reject(
+                    new Error(
+                        `Execution timeout after ${
+                            request.timeoutMs ?? 30000
+                        }ms`
+                    )
+                )
             }, request.timeoutMs ?? 30000)
+
+            child.stdout.on("data", chunk => {
+                stdout += chunk.toString()
+            })
+
+            child.stderr.on("data", chunk => {
+                stderr += chunk.toString()
+            })
 
             child.on("error", error => {
                 clearTimeout(timeout)
@@ -56,16 +71,19 @@ export class ExecutionEngine {
             child.on("close", code => {
                 clearTimeout(timeout)
 
-                const durationMs = Math.round(performance.now() - start)
+                const durationMs =
+                    Math.round(performance.now() - start)
+
+                const exitCode = code ?? -1
 
                 resolve({
                     language: request.language,
-                    command: `${runtime.command} ${args.join(" ")}`,
+                    command,
                     stdout,
                     stderr,
-                    exitCode: code ?? -1,
+                    exitCode,
                     durationMs,
-                    success: (code ?? -1) === 0
+                    success: exitCode === 0
                 })
             })
         })

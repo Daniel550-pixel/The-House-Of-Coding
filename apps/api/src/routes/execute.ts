@@ -1,4 +1,5 @@
 ﻿import { Router } from "express"
+import { house } from "../services/house"
 
 const router = Router()
 
@@ -9,26 +10,32 @@ router.post("/", async (req, res) => {
             filePath,
             workingDirectory,
             args
-        } = req.body
+        } = req.body ?? {}
 
         if (!language || !filePath) {
             return res.status(400).json({
+                success: false,
                 error: "language and filePath are required"
             })
         }
 
-        res.json({
-            success: true,
-            engine: "execution-engine",
+        const result = await house.execute(
             language,
             filePath,
-            workingDirectory: workingDirectory ?? null,
-            args: args ?? [],
-            message: "Execution Engine endpoint ready"
+            workingDirectory,
+            args
+        )
+
+        res.json({
+            success: true,
+            result
         })
     } catch (error) {
         res.status(500).json({
-            error: error instanceof Error ? error.message : "Unknown error"
+            success: false,
+            error: error instanceof Error
+                ? error.message
+                : "Unknown error"
         })
     }
 })

@@ -2,8 +2,6 @@
     language: string
     extensions: string[]
     command: string
-    buildCommand?: string
-    testCommand?: string
 }
 
 export class RuntimeRegistry {

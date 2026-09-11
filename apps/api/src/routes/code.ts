@@ -1,32 +1,33 @@
 ﻿import { Router } from "express"
+import { house } from "../services/house"
 
 const router = Router()
 
 router.post("/", async (req, res) => {
     try {
-        const {
-            instruction,
-            language,
-            projectPath
-        } = req.body
-
-        if (!instruction) {
+        if (!req.body?.instruction) {
             return res.status(400).json({
+                success: false,
                 error: "instruction is required"
             })
         }
 
+        const result = await house.code(
+            req.body.instruction,
+            req.body.language,
+            req.body.projectPath
+        )
+
         res.json({
             success: true,
-            agent: "coding-agent",
-            instruction,
-            language: language ?? "auto-detect",
-            projectPath: projectPath ?? null,
-            message: "Coding Agent endpoint ready"
+            result
         })
     } catch (error) {
         res.status(500).json({
-            error: error instanceof Error ? error.message : "Unknown error"
+            success: false,
+            error: error instanceof Error
+                ? error.message
+                : "Unknown error"
         })
     }
 })
