@@ -20,6 +20,7 @@ import {
   Wand2
 } from "lucide-react"
 import { AutonomousControls, type AgentAction } from "../components/autonomous-controls"
+import { SymbolOutline } from "../components/symbol-outline"
 import {
   executeFile,
   generateCode,
@@ -593,6 +594,15 @@ export default function Home() {
           <div className="border-b border-neutral-800 p-2"><div className="flex items-center gap-2 rounded-md border border-neutral-800 bg-neutral-900 px-2.5 py-2"><Search size={14} className="text-neutral-600" /><input id="file-search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search files" className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-neutral-600" />{search && <button onClick={() => setSearch("")} className="text-neutral-600 hover:text-white"><X size={13} /></button>}</div></div>
           <div className="border-b border-neutral-800 px-4 py-2 text-[11px] text-neutral-600">{status}</div>
           <div className="h-[calc(100vh-9.5rem)] overflow-auto p-2">
+            <SymbolOutline
+              filePath={selectedFile}
+              onJump={line => {
+                const indexAtLine = lineStartIndex(code, Math.min(Math.max(line, 1), numbers.length))
+                editorRef.current?.focus()
+                editorRef.current?.setSelectionRange(indexAtLine, indexAtLine)
+                setStatus(`Symbol line ${Math.min(Math.max(line, 1), numbers.length)}`)
+              }}
+            />
             <div className="mb-2 flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-200"><FolderOpen size={15} /><span className="truncate">{project?.name ?? "the-house-of-coding"}</span></div>
             {visibleTree.map(node => <AgentTreeNode key={node.path} node={node} depth={0} selectedFile={selectedFile} openTabs={uniqueTabs} onOpen={path => void openFile(path)} />)}
             {search && visibleTree.length === 0 && <div className="px-3 py-4 text-xs text-neutral-600">No matching files.</div>}
