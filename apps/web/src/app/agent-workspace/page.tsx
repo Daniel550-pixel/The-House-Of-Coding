@@ -3,18 +3,39 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Bot, Bug, CheckCircle2, Code2, FileCode2, FlaskConical, FolderOpen, Play, RefreshCw, Send, ShieldCheck, Sparkles, Terminal, X, Zap } from "lucide-react"
 import { AutonomousControls, type AgentAction } from "../../components/autonomous-controls"
-import { createAgentSession, executeFile, getLanguages, getProjectFile, getProjectFiles, saveProjectFile, subscribeAgentSession, type AgentEvent, type AgentSession, type LanguageRuntime, type WorkspaceFile } from "../../lib/api"
+import { createAgentSession, executeFile, getAgentSessions, getLanguages, getProjectFile, getProjectFiles, saveProjectFile, subscribeAgentSession, type AgentEvent, type AgentSession, type LanguageRuntime, type WorkspaceFile } from "../../lib/api"
 
 type Tab = { path: string; content: string; savedContent: string }
 type Proposal = { changes: Array<{ path: string; content: string }>; action: AgentAction; summary: string }
 const PROJECT_ID = "house"
 const DEFAULT_FILE = "apps/web/src/app/page.tsx"
+const FLEET = ["BUILD", "DEBUG", "TEST", "REVIEW", "REFINE", "AUTONOMOUS"] as const
+
+type FleetName = typeof FLEET[number]
 
 function languageFor(path: string, languages: LanguageRuntime[]) {
   const ext = path.includes(".") ? `.${path.split(".").pop()}`.toLowerCase() : ""
   return languages.find(item => item.extensions.some(value => value.toLowerCase() === ext))?.language ?? "typescript"
 }
 function nameOf(path: string) { return path.split("/").pop() ?? path }
+function fleetForSession(session: AgentSession | null): FleetName {
+  if (!session) return "AUTONOMOUS"
+  const latest = session.events.at(-1)?.stage
+  if (latest === "code") return "BUILD"
+  if (latest === "debug") return "DEBUG"
+  if (latest === "test") return "TEST"
+  if (session.request.instruction.toLowerCase().includes("review")) return "REVIEW"
+  if (session.request.instruction.toLowerCase().includes("refine")) return "REFINE"
+  return "AUTONOMOUS"
+}
+function fleetIcon(name: FleetName) {
+  if (name === "BUILD") return <Code2/>
+  if (name === "DEBUG") return <Bug/>
+  if (name === "TEST") return <FlaskConical/>
+  if (name === "REVIEW") return <ShieldCheck/>
+  if (name === "REFINE") return <Sparkles/>
+  return <Zap/>
+}
 
 export default function AgentWorkspacePage() {
   const [files, setFiles] = useState<WorkspaceFile[]>([])
@@ -29,6 +50,7 @@ export default function AgentWorkspacePage() {
   const [refreshing, setRefreshing] = useState(false)
   const [running, setRunning] = useState(false)
   const [session, setSession] = useState<AgentSession | null>(null)
+  const [sessionHistory, setSessionHistory] = useState<AgentSession[]>([])
   const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([])
   const [activity, setActivity] = useState<string[]>(["Runtime initialized", "Human control layer online", "Workspace awaiting mission"])
 
@@ -37,15 +59,30 @@ export default function AgentWorkspacePage() {
   const language = languageFor(selectedFile, languages)
   const filteredFiles = useMemo(() => files.filter(file => !search.trim() || file.path.toLowerCase().includes(search.toLowerCase())), [files, search])
   const log = useCallback((message: string) => setActivity(current => [...current.slice(-7), message]), [])
+  const fleetActive = fleetForSession(session)
 
   const refresh = useCallback(async () => {
     setRefreshing(true)
     try {
-      const [fileData, languageData] = await Promise.all([getProjectFiles(PROJECT_ID), getLanguages()])
-      setFiles(fileData.files); setLanguages(languageData.languages); setStatus("READY")
+      const [fileData, languageData, historyData] = await Promise.all([getProjectFiles(PROJECT_ID), getLanguages(), getAgentSessions(25)])
+      setFiles(fileData.files); setLanguages(languageData.languages); setSessionHistory(historyData.sessions); setStatus("READY")
       log(`Workspace synchronized · ${fileData.files.length} files`)
     } catch (error) { setStatus(error instanceof Error ? error.message : "Workspace unavailable") }
     finally { setRefreshing(false) }
+  }, [log])
+
+  const restoreLatestSession = useCallback(async (history: AgentSession[]) => {
+    const latest = history.find(item => item.status === "running") ?? history[0]
+    if (!latest) return
+    try {
+      const result = await getAgentSessions(25)
+      setSessionHistory(result.sessions)
+      const restored = result.sessions.find(item => item.id === latest.id) ?? latest
+      setSession(restored)
+      setAgentEvents(restored.events.slice(-20))
+      setStatus(restored.status.toUpperCase())
+      log(`Session restored · ${restored.id.slice(0, 12)}`)
+    } catch { setSession(latest); setAgentEvents(latest.events.slice(-20)) }
   }, [log])
 
   const openFile = useCallback(async (path: string) => {
@@ -62,10 +99,15 @@ export default function AgentWorkspacePage() {
     let ignore = false
     async function loadInitial() {
       try {
-        const [fileData, languageData] = await Promise.all([getProjectFiles(PROJECT_ID), getLanguages()])
+        const [fileData, languageData, historyData] = await Promise.all([getProjectFiles(PROJECT_ID), getLanguages(), getAgentSessions(25)])
         if (ignore) return
-        setFiles(fileData.files); setLanguages(languageData.languages); setStatus("READY")
+        setFiles(fileData.files); setLanguages(languageData.languages); setSessionHistory(historyData.sessions); setStatus("READY")
         log(`Workspace synchronized · ${fileData.files.length} files`)
+        const latest = historyData.sessions.find(item => item.status === "running") ?? historyData.sessions[0]
+        if (latest) {
+          setSession(latest); setAgentEvents(latest.events.slice(-20)); setStatus(latest.status.toUpperCase())
+          log(`Session restored · ${latest.id.slice(0, 12)}`)
+        }
         if (fileData.files.some(f => f.path === DEFAULT_FILE)) {
           const result = await getProjectFile(PROJECT_ID, DEFAULT_FILE)
           if (!ignore) { setTabs([{ path: DEFAULT_FILE, content: result.content, savedContent: result.content }]); setSelectedFile(DEFAULT_FILE); log(`Opened ${nameOf(DEFAULT_FILE)}`) }
@@ -98,11 +140,12 @@ export default function AgentWorkspacePage() {
     setStatus("DISPATCHING"); setRunning(true); setAgentEvents([]); log(`Mission dispatched · ${nameOf(selectedFile)}`)
     try {
       const response = await createAgentSession({ instruction, language, filePath: selectedFile, maxIterations: 3 })
-      setSession(response.session); log(`Agent session ${response.session.id} online`)
+      setSession(response.session); setSessionHistory(current => [response.session, ...current.filter(item => item.id !== response.session.id)].slice(0, 25)); log(`Agent session ${response.session.id} online`)
       const unsubscribe = subscribeAgentSession(response.session.id, event => {
         setAgentEvents(current => [...current.slice(-19), event]); setStatus(event.stage.toUpperCase()); log(`${event.stage.toUpperCase()} · ${event.message}`)
+        setSessionHistory(current => current.map(item => item.id === response.session.id ? { ...item, events: [...item.events, event] } : item))
         if (event.stage === "complete" || event.stage === "failed") { setRunning(false); void refresh() }
-      }, currentSession => setSession(currentSession), () => log("Agent event stream disconnected"))
+      }, currentSession => { setSession(currentSession); setSessionHistory(current => current.map(item => item.id === currentSession.id ? currentSession : item)) }, () => log("Agent event stream disconnected"))
       window.setTimeout(() => unsubscribe(), 10 * 60 * 1000)
     } catch (error) { setRunning(false); setStatus(error instanceof Error ? error.message : "Mission dispatch failed") }
   }
@@ -171,7 +214,8 @@ export default function AgentWorkspacePage() {
         <div className="hud-dock-output"><div className="hud-dock-title"><Terminal size={12}/> OUTPUT <span>{status}</span></div><pre>{output || agentEvents.slice(-5).map(e => `[${e.stage.toUpperCase()}] ${e.message}`).join("\n") || "SYSTEM READY // AWAITING DIRECTIVE"}</pre></div>
       </section>
 
-      <div className="hud-fleet-bar"><AgentChip icon={<Code2/>} name="BUILD"/><AgentChip icon={<Bug/>} name="DEBUG"/><AgentChip icon={<FlaskConical/>} name="TEST"/><AgentChip icon={<ShieldCheck/>} name="REVIEW"/><AgentChip icon={<Sparkles/>} name="REFINE"/><AgentChip icon={<Zap/>} name="AUTONOMOUS" active/><span className="hud-fleet-spacer"/><span className="hud-human">HUMAN CONTROL // APPROVAL REQUIRED</span></div>
+      <div className="hud-fleet-bar">{FLEET.map(name => <AgentChip key={name} icon={fleetIcon(name)} name={name} active={name === fleetActive}/>) }<span className="hud-fleet-spacer"/><span className="hud-human">{sessionHistory.length} SESSION{sessionHistory.length === 1 ? "" : "S"} // HUMAN CONTROL // APPROVAL REQUIRED</span></div>
+      <div className="hud-session-history" aria-label="Agent session history"><span>HISTORY</span>{sessionHistory.slice(0, 5).map(item => <button key={item.id} title={item.request.instruction} onClick={() => { setSession(item); setAgentEvents(item.events.slice(-20)); setStatus(item.status.toUpperCase()); log(`Session selected · ${item.id.slice(0, 12)}`) }} className={item.id === session?.id ? "active" : ""}><i className={item.status}/>{item.id.slice(-6)} · {item.status.toUpperCase()}</button>)}</div>
       <AutonomousControls language={language} filePath={selectedFile} code={code} instruction={prompt} onProposal={value => { setProposal(value); setStatus("AWAITING APPROVAL"); log(`Proposal generated · ${value.changes.length} file(s)`) }} onOutput={value => { setOutput(value); setStatus("RESULT AVAILABLE"); log("Agent returned result") }} onFilesChanged={() => void refresh()} />
 
       {proposal && <div className="agent-approval-overlay"><div className="agent-approval-modal"><header><div><span>APPROVAL QUEUE</span><strong>Agent proposal requires human review</strong></div><button onClick={() => setProposal(null)}><X size={16}/></button></header><div className="agent-approval-summary">{proposal.summary}</div>{proposal.changes.map(change => <div className="agent-change" key={change.path}><span>{change.path}</span><pre>{change.content.slice(0,3000)}</pre></div>)}<footer><button onClick={() => setProposal(null)}>REJECT</button><button className="approve" onClick={() => void applyProposal()}><CheckCircle2 size={13}/> APPROVE & APPLY</button></footer></div></div>}
