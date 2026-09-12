@@ -13,6 +13,7 @@ import testRouter from "./routes/test"
 import debugRouter from "./routes/debug"
 import reviewRouter from "./routes/review"
 import autonomousRouter from "./routes/autonomous"
+import sessionsRouter from "./routes/sessions"
 
 dotenv.config()
 
@@ -55,6 +56,7 @@ app.use("/test", testRouter)
 app.use("/debug", debugRouter)
 app.use("/review", reviewRouter)
 app.use("/autonomous", autonomousRouter)
+app.use("/sessions", sessionsRouter)
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(error)
@@ -80,6 +82,7 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`Debug:     http://localhost:${PORT}/debug`)
   console.log(`Review:    http://localhost:${PORT}/review`)
   console.log(`Autonomous:http://localhost:${PORT}/autonomous`)
+  console.log(`Sessions:  http://localhost:${PORT}/sessions`)
   console.log("==============================================")
   console.log("")
 })
