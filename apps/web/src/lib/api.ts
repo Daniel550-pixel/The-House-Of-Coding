@@ -212,6 +212,22 @@ export function reviewCode(input: { path?: string; code?: string; language?: str
   })
 }
 
+export function runFleetCode(input: { instruction: string; language?: string; projectId?: string; apply?: boolean }) {
+  return generateCode(input)
+}
+
+export function runFleetDebug(input: { error: string; code?: string; language?: string }) {
+  return debugCode(input)
+}
+
+export function runFleetTest(input: { path: string; language?: string }) {
+  return analyzeTests(input)
+}
+
+export function runFleetReview(input: { path?: string; code?: string; language?: string }) {
+  return reviewCode(input)
+}
+
 export function runAutonomous(input: {
   instruction: string
   language: string
