@@ -147,7 +147,7 @@ function diffLines(before: string, after: string) {
 
   return rows
 }
-\nfunction parseDiagnostics(value: string): Diagnostic[] {
+function parseDiagnostics(value: string): Diagnostic[] {
   const diagnostics: Diagnostic[] = []
   const seen = new Set<string>()
 
@@ -573,12 +573,6 @@ export default function Home() {
     setStatus("Proposal rejected")
   }
 
-  function rejectProposal() {
-    if (!proposal) return
-    setProposal(null)
-    setStatus("Proposal rejected")
-  }
-
   function updateCode(value: string) {
     setOpenTabs(current => current.map(tab => tab.path === selectedFile ? { ...tab, content: value } : tab))
     setStatus("Unsaved changes")
@@ -661,6 +655,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!selectedFile && files.some(file => file.path === DEFAULT_FILE)) void openFile(DEFAULT_FILE)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files, selectedFile])
 
   return (

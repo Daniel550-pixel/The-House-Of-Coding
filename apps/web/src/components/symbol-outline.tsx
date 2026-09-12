@@ -24,17 +24,15 @@ export function SymbolOutline({
   const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
-    if (!filePath) {
-      setSymbols([])
-      return
-    }
+    if (!filePath) return
 
     let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
 
     getWorkspaceSymbols({
       projectId: "house",
-      filePath
+      path: filePath
     })
       .then(result => {
         if (!cancelled) setSymbols(result.symbols)
@@ -53,15 +51,16 @@ export function SymbolOutline({
 
   const grouped = useMemo(() => {
     const result = new Map<string, WorkspaceSymbol[]>()
+    const activeSymbols = filePath ? symbols : []
 
-    for (const symbol of symbols) {
+    for (const symbol of activeSymbols) {
       const existing = result.get(symbol.kind) ?? []
       existing.push(symbol)
       result.set(symbol.kind, existing)
     }
 
     return Array.from(result.entries())
-  }, [symbols])
+  }, [symbols, filePath])
 
   return (
     <div className="border-t border-neutral-800">
@@ -94,7 +93,7 @@ export function SymbolOutline({
                       key={`${symbol.kind}:${symbol.name}:${symbol.line}:${symbol.column}`}
                       onClick={() => onJump(symbol.line)}
                       className="flex w-full items-center gap-2 px-4 py-1 text-left text-[11px] text-neutral-500 hover:bg-neutral-900 hover:text-neutral-200"
-                      title={symbol.signature}
+                      title={symbol.signature ?? symbol.name}
                     >
                       <Icon size={12} />
                       <span className="truncate">{symbol.name}</span>

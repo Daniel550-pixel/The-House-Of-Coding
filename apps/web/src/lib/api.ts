@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? ""
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -66,6 +66,7 @@ export type WorkspaceSymbol = {
   line: number
   column: number
   path: string
+  signature?: string
 }
 
 export function getProjects() {
