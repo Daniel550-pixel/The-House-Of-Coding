@@ -69,6 +69,28 @@ export type WorkspaceSymbol = {
   signature?: string
 }
 
+export type AgentEvent = {
+  iteration: number
+  stage: "code" | "execute" | "debug" | "test" | "complete" | "failed"
+  message: string
+}
+
+export type AgentSession = {
+  id: string
+  request: {
+    instruction: string
+    language: string
+    filePath: string
+    maxIterations?: number
+  }
+  status: "queued" | "running" | "completed" | "failed"
+  createdAt: string
+  startedAt?: string
+  completedAt?: string
+  events: AgentEvent[]
+  result?: unknown
+}
+
 export function getProjects() {
   return request<{ success: boolean; projects: Project[] }>("/projects")
 }
@@ -201,11 +223,7 @@ export function runAutonomous(input: {
     result: {
       success: boolean
       iteration: number
-      events: Array<{
-        iteration: number
-        stage: "code" | "execute" | "debug" | "test" | "complete" | "failed"
-        message: string
-      }>
+      events: AgentEvent[]
       execution?: ExecutionResult
       tests?: AgentResult
       debug?: AgentResult
@@ -214,4 +232,37 @@ export function runAutonomous(input: {
     method: "POST",
     body: JSON.stringify(input)
   })
+}
+
+export function createAgentSession(input: AgentSession["request"]) {
+  return request<{ success: boolean; session: AgentSession }>("/sessions", {
+    method: "POST",
+    body: JSON.stringify(input)
+  })
+}
+
+export function getAgentSession(id: string) {
+  return request<{ success: boolean; session: AgentSession }>(`/sessions/${id}`)
+}
+
+export function subscribeAgentSession(
+  id: string,
+  onEvent: (event: AgentEvent) => void,
+  onSession?: (session: AgentSession) => void,
+  onError?: (error: Event) => void
+) {
+  const source = new EventSource(`${API_BASE}/sessions/${id}/events`)
+
+  source.onmessage = event => {
+    try {
+      const payload = JSON.parse(event.data) as { type?: string; session?: AgentSession } | AgentEvent
+      if ("type" in payload && payload.type === "session" && payload.session) onSession?.(payload.session)
+      else if ("stage" in payload) onEvent(payload)
+    } catch {
+      // Ignore malformed stream messages.
+    }
+  }
+
+  source.onerror = event => onError?.(event)
+  return () => source.close()
 }
