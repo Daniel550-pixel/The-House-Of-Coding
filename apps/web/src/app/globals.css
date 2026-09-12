@@ -1,432 +1,283 @@
 @import "tailwindcss";
 
 :root {
-  --hoc-bg: #07090d;
-  --hoc-surface: #0b0f15;
-  --hoc-surface-2: #0f141c;
-  --hoc-surface-3: #131a24;
-  --hoc-border: #1c2633;
-  --hoc-border-strong: #2a3748;
-  --hoc-text: #f4f7fb;
-  --hoc-muted: #8b98a9;
-  --hoc-dim: #586577;
-  --hoc-accent: #7dd3fc;
-  --hoc-accent-strong: #38bdf8;
-  --hoc-success: #6ee7b7;
-  --hoc-warning: #fbbf24;
-  --hoc-danger: #fb7185;
-  --background: var(--hoc-bg);
-  --foreground: var(--hoc-text);
+  --paper: #f4f1e8;
+  --paper-2: #ebe7dc;
+  --ink: #11151a;
+  --ink-2: #252b32;
+  --muted: #747b83;
+  --line: #c9c5bb;
+  --line-dark: #969188;
+  --blue: #1546d8;
+  --blue-dark: #0d2d91;
+  --orange: #f05a28;
+  --green: #16734b;
+  --red: #b52b35;
+  --background: var(--paper);
+  --foreground: var(--ink);
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html,
+* { box-sizing: border-box; }
+html, body { min-height: 100%; margin: 0; padding: 0; }
 body {
-  min-height: 100%;
-  margin: 0;
-  padding: 0;
-  background: var(--hoc-bg);
-}
-
-body {
-  color: var(--hoc-text);
-  font-family: var(--font-geist-sans), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: var(--font-geist-sans), Inter, ui-sans-serif, system-ui, sans-serif;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 75% -10%, rgba(56, 189, 248, 0.08), transparent 32rem),
-    radial-gradient(circle at 10% 100%, rgba(99, 102, 241, 0.05), transparent 28rem),
-    var(--hoc-bg);
 }
+button, input, textarea, select { font: inherit; }
+button { transition: all 120ms ease; }
+button:active:not(:disabled) { transform: translateY(1px); }
 
-button,
-input,
-textarea,
-select {
-  font: inherit;
-}
-
-button {
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease, transform 120ms ease;
-}
-
-button:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-/* -------------------------------------------------------------------------- */
-/* Application shell                                                          */
-/* -------------------------------------------------------------------------- */
-
+/* HOUSE OF CODING — architectural studio / engineering notebook */
 main.min-h-screen {
   height: 100dvh;
   min-height: 0 !important;
   display: flex;
   flex-direction: column;
-  background: transparent !important;
+  background:
+    linear-gradient(rgba(17,21,26,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(17,21,26,.035) 1px, transparent 1px),
+    var(--paper) !important;
+  background-size: 24px 24px;
 }
 
 main.min-h-screen > header {
-  height: 58px !important;
-  flex: 0 0 58px;
-  padding: 0 18px !important;
-  background: rgba(8, 11, 16, 0.88) !important;
-  border-bottom: 1px solid var(--hoc-border) !important;
-  backdrop-filter: blur(18px);
+  height: 72px !important;
+  flex: 0 0 72px;
+  padding: 0 24px !important;
+  background: var(--paper) !important;
+  border-bottom: 2px solid var(--ink) !important;
   position: relative;
-  z-index: 20;
+  z-index: 30;
 }
 
 main.min-h-screen > header > div:first-child > div:first-child {
-  width: 32px !important;
-  height: 32px !important;
-  border-radius: 9px !important;
-  background: linear-gradient(135deg, #e0f2fe, #7dd3fc) !important;
-  box-shadow: 0 0 24px rgba(56, 189, 248, 0.16);
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 0 !important;
+  background: var(--ink) !important;
+  color: var(--paper) !important;
+  box-shadow: 5px 5px 0 var(--orange);
 }
-
 main.min-h-screen > header .text-sm.font-semibold {
-  font-size: 11px !important;
-  letter-spacing: 0.14em !important;
+  font-size: 13px !important;
+  letter-spacing: .16em !important;
+  font-weight: 800 !important;
 }
-
-main.min-h-screen > header .text-xs.text-neutral-500 {
-  color: var(--hoc-dim) !important;
-}
-
+main.min-h-screen > header .text-xs.text-neutral-500 { color: var(--muted) !important; }
 main.min-h-screen > header button,
 main.min-h-screen > header select,
 main.min-h-screen > header .border-neutral-800 {
-  border-color: var(--hoc-border) !important;
+  border-color: var(--ink) !important;
+  background: transparent !important;
+  color: var(--ink) !important;
+  border-radius: 0 !important;
 }
-
-main.min-h-screen > header button:not(.bg-white):hover {
-  background: var(--hoc-surface-3) !important;
-  border-color: var(--hoc-border-strong) !important;
-}
-
+main.min-h-screen > header button:hover { background: var(--ink) !important; color: white !important; }
 main.min-h-screen > header .bg-white {
-  background: linear-gradient(135deg, #f8fafc, #dbeafe) !important;
-  color: #071018 !important;
-  box-shadow: 0 6px 22px rgba(125, 211, 252, 0.12);
+  background: var(--blue) !important;
+  color: white !important;
+  border-color: var(--blue) !important;
+  box-shadow: 4px 4px 0 var(--ink);
 }
 
-/* Main workspace is the IDE canvas. */
+/* Workspace: three architectural zones rather than a conventional IDE */
 main.min-h-screen > section {
   min-height: 0 !important;
   flex: 1 1 auto;
   display: grid !important;
-  grid-template-columns: 248px minmax(0, 1fr) 356px;
+  grid-template-columns: 270px minmax(0, 1fr) 330px;
   background: transparent !important;
   overflow: hidden;
+  gap: 0 !important;
 }
-
 main.min-h-screen > section > aside,
 main.min-h-screen > section > section {
   min-width: 0;
   min-height: 0;
-  background: rgba(10, 14, 20, 0.82) !important;
+  background: var(--paper) !important;
 }
-
-main.min-h-screen > section > aside:first-child {
-  border-right: 1px solid var(--hoc-border) !important;
-}
-
-main.min-h-screen > section > aside:last-child {
-  border-left: 1px solid var(--hoc-border) !important;
-}
-
+main.min-h-screen > section > aside:first-child { border-right: 1px solid var(--line-dark) !important; }
+main.min-h-screen > section > aside:last-child { border-left: 1px solid var(--line-dark) !important; }
 main.min-h-screen > section > section {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #080b10 !important;
+  background: rgba(250,248,242,.94) !important;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Left project explorer                                                      */
-/* -------------------------------------------------------------------------- */
-
+/* Left: project index */
 main.min-h-screen > section > aside:first-child > div:first-child {
-  height: 46px !important;
-  padding: 0 14px !important;
-  background: rgba(13, 18, 25, 0.92) !important;
-  border-bottom-color: var(--hoc-border) !important;
+  height: 58px !important;
+  padding: 0 16px !important;
+  background: var(--ink) !important;
+  color: white !important;
+  border-bottom: 0 !important;
 }
-
 main.min-h-screen > section > aside:first-child .text-sm.font-semibold {
   font-size: 10px !important;
-  letter-spacing: 0.13em !important;
+  letter-spacing: .18em !important;
   text-transform: uppercase;
 }
-
 main.min-h-screen > section > aside:first-child input {
-  height: 32px;
-  border-radius: 8px !important;
-  background: #080c12 !important;
-  border: 1px solid var(--hoc-border) !important;
-  color: var(--hoc-text) !important;
+  height: 34px;
+  border-radius: 0 !important;
+  background: transparent !important;
+  border: 1px solid var(--line-dark) !important;
+  color: var(--ink) !important;
 }
-
 main.min-h-screen > section > aside:first-child input:focus {
-  border-color: #31506a !important;
-  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.06);
+  border-color: var(--blue) !important;
+  box-shadow: 4px 4px 0 rgba(21,70,216,.12);
 }
-
-main.min-h-screen > section > aside:first-child .text-neutral-400,
-main.min-h-screen > section > aside:first-child .text-neutral-500 {
-  color: var(--hoc-muted) !important;
-}
-
-main.min-h-screen > section > aside:first-child button:hover {
-  background: rgba(28, 38, 51, 0.72) !important;
-}
-
+main.min-h-screen > section > aside:first-child .text-neutral-400 { color: var(--ink-2) !important; }
+main.min-h-screen > section > aside:first-child .text-neutral-500 { color: var(--muted) !important; }
+main.min-h-screen > section > aside:first-child button:hover { background: var(--paper-2) !important; color: var(--ink) !important; border-radius: 0 !important; }
 main.min-h-screen > section > aside:first-child button.bg-neutral-900 {
-  background: rgba(56, 189, 248, 0.09) !important;
-  color: #dff6ff !important;
-  box-shadow: inset 2px 0 0 var(--hoc-accent-strong);
+  background: #dce4ff !important;
+  color: var(--blue-dark) !important;
+  border-left: 4px solid var(--blue);
+  border-radius: 0 !important;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Center editor                                                              */
-/* -------------------------------------------------------------------------- */
-
+/* Center: code becomes a large technical drawing surface */
 main.min-h-screen > section > section > div:first-child {
-  background: #090c11 !important;
-  border-bottom-color: var(--hoc-border) !important;
+  background: var(--paper-2) !important;
+  border-bottom: 1px solid var(--line-dark) !important;
 }
-
-main.min-h-screen > section > section .border-neutral-800 {
-  border-color: var(--hoc-border) !important;
-}
-
-main.min-h-screen > section > section .bg-neutral-900 {
-  background: var(--hoc-surface-2) !important;
-}
-
-main.min-h-screen > section > section .bg-neutral-950 {
-  background: #080b10 !important;
-}
-
+main.min-h-screen > section > section .border-neutral-800 { border-color: var(--line) !important; }
+main.min-h-screen > section > section .bg-neutral-900 { background: #e3dfd4 !important; }
+main.min-h-screen > section > section .bg-neutral-950 { background: #f8f6ef !important; }
 main.min-h-screen > section > section textarea,
 main.min-h-screen > section > section pre {
-  font-family: var(--font-geist-mono), "Cascadia Code", "SFMono-Regular", Consolas, monospace !important;
+  font-family: var(--font-geist-mono), "Cascadia Code", Consolas, monospace !important;
 }
-
 main.min-h-screen > section > section textarea {
-  color: #d8e1eb !important;
-  caret-color: var(--hoc-accent) !important;
-  line-height: 1.7 !important;
+  color: var(--ink) !important;
+  caret-color: var(--orange) !important;
+  line-height: 1.75 !important;
   tab-size: 2;
 }
+main.min-h-screen > section > section textarea:focus { outline: none !important; }
+main.min-h-screen > section > section button[class*="border-b"] { border-color: var(--line) !important; }
 
-main.min-h-screen > section > section textarea:focus {
-  outline: none !important;
+/* Code tabs */
+main.min-h-screen > section > section > div:first-child button {
+  border-radius: 0 !important;
+  color: var(--muted) !important;
+}
+main.min-h-screen > section > section > div:first-child button:hover {
+  color: var(--ink) !important;
+  background: var(--paper) !important;
 }
 
-main.min-h-screen > section > section .font-mono.text-xs,
-main.min-h-screen > section > section .font-mono.text-\[10px\] {
-  letter-spacing: -0.01em;
-}
-
-/* Tabs become a compact editor tab strip. */
-main.min-h-screen > section > section button[class*="border-b"] {
-  border-color: var(--hoc-border) !important;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Terminal / diagnostics                                                      */
-/* -------------------------------------------------------------------------- */
-
+/* Terminal: orange technical instrument strip */
 main.min-h-screen > section > section > div:last-child {
-  background: #070a0e !important;
-  border-top-color: var(--hoc-border) !important;
+  background: var(--ink) !important;
+  border-top: 3px solid var(--orange) !important;
+  color: #e9e6dc !important;
 }
-
 main.min-h-screen > section > section > div:last-child pre {
-  color: #9eabbc !important;
-  background: #070a0e !important;
+  color: #c7c3b8 !important;
+  background: var(--ink) !important;
 }
+main.min-h-screen > section > section .text-neutral-600 { color: #77736a !important; }
 
-main.min-h-screen > section > section .text-neutral-600 {
-  color: var(--hoc-dim) !important;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Right AI command center                                                     */
-/* -------------------------------------------------------------------------- */
-
+/* Right: AI architect board */
 main.min-h-screen > section > aside:last-child > div:first-child {
-  height: 46px !important;
-  padding: 0 15px !important;
-  background: rgba(13, 18, 25, 0.92) !important;
-  border-bottom-color: var(--hoc-border) !important;
+  height: 58px !important;
+  padding: 0 16px !important;
+  background: var(--blue) !important;
+  color: white !important;
+  border-bottom: 0 !important;
 }
-
 main.min-h-screen > section > aside:last-child > div:first-child .text-sm.font-semibold {
-  font-size: 11px !important;
-  letter-spacing: 0.12em !important;
+  font-size: 10px !important;
+  letter-spacing: .18em !important;
   text-transform: uppercase;
 }
-
 main.min-h-screen > section > aside:last-child > div:nth-child(2) {
-  background:
-    linear-gradient(180deg, rgba(56, 189, 248, 0.025), transparent 22%),
-    var(--hoc-bg) !important;
+  background: #e9e5da !important;
 }
-
 main.min-h-screen > section > aside:last-child > div:nth-child(2) > div {
-  border-color: var(--hoc-border) !important;
-  background: rgba(15, 20, 28, 0.76) !important;
+  border-color: var(--line-dark) !important;
+  border-radius: 0 !important;
+  background: #f8f6ef !important;
+  box-shadow: 5px 5px 0 rgba(17,21,26,.08);
 }
-
 main.min-h-screen > section > aside:last-child > div:nth-child(2) > div:first-child {
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.045), rgba(15, 20, 28, 0.76)) !important;
-  border-style: solid !important;
+  background: #f8f6ef !important;
+  border: 1px solid var(--ink) !important;
 }
-
 main.min-h-screen > section > aside:last-child textarea {
-  min-height: 112px !important;
-  color: var(--hoc-text) !important;
+  min-height: 128px !important;
+  color: var(--ink) !important;
+  background: transparent !important;
 }
-
-main.min-h-screen > section > aside:last-child textarea::placeholder {
-  color: #526174 !important;
-}
-
+main.min-h-screen > section > aside:last-child textarea::placeholder { color: #98958c !important; }
 main.min-h-screen > section > aside:last-child .bg-white {
-  background: linear-gradient(135deg, #dff6ff, #bae6fd) !important;
-  color: #071018 !important;
+  background: var(--orange) !important;
+  color: white !important;
+  border-radius: 0 !important;
 }
+main.min-h-screen > section > aside:last-child .bg-white:hover { background: #d94b20 !important; }
 
-main.min-h-screen > section > aside:last-child .bg-white:hover {
-  filter: brightness(1.04);
-}
-
-/* -------------------------------------------------------------------------- */
-/* Search, proposal and rollback overlays                                      */
-/* -------------------------------------------------------------------------- */
-
+/* AI proposal/search overlays become paper sheets */
 main.min-h-screen .fixed.inset-0 {
-  backdrop-filter: blur(10px);
-  background: rgba(2, 5, 8, 0.76) !important;
+  backdrop-filter: blur(4px);
+  background: rgba(17,21,26,.58) !important;
 }
-
 main.min-h-screen .fixed.inset-0 > div {
-  border-color: var(--hoc-border-strong) !important;
-  background: #0a0e14 !important;
-  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55) !important;
+  border: 2px solid var(--ink) !important;
+  border-radius: 0 !important;
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+  box-shadow: 12px 12px 0 rgba(0,0,0,.28) !important;
 }
-
 main.min-h-screen .fixed.bottom-5.right-5 {
-  border-color: var(--hoc-border-strong) !important;
-  background: rgba(10, 14, 20, 0.96) !important;
-  backdrop-filter: blur(18px);
+  border: 2px solid var(--ink) !important;
+  border-radius: 0 !important;
+  background: var(--paper) !important;
+  color: var(--ink) !important;
+  box-shadow: 7px 7px 0 rgba(0,0,0,.18);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Shared control language                                                     */
-/* -------------------------------------------------------------------------- */
-
+/* Global text/control normalization */
 main.min-h-screen .rounded-lg,
-main.min-h-screen .rounded-xl {
-  border-radius: 9px;
-}
+main.min-h-screen .rounded-xl { border-radius: 0 !important; }
+main.min-h-screen .text-neutral-200 { color: var(--ink) !important; }
+main.min-h-screen .text-neutral-300 { color: var(--ink-2) !important; }
+main.min-h-screen .text-neutral-400 { color: #555d65 !important; }
+main.min-h-screen .text-neutral-500 { color: var(--muted) !important; }
+main.min-h-screen .text-neutral-600 { color: #858177 !important; }
 
-main.min-h-screen .text-neutral-200 {
-  color: #dce5ef !important;
-}
-
-main.min-h-screen .text-neutral-300 {
-  color: #b8c4d2 !important;
-}
-
-main.min-h-screen .text-neutral-400 {
-  color: #8d9aac !important;
-}
-
-main.min-h-screen .text-neutral-500 {
-  color: #68778a !important;
-}
-
-main.min-h-screen .text-neutral-600 {
-  color: #536174 !important;
-}
+/* Status colors */
+main.min-h-screen .text-emerald-400,
+main.min-h-screen .text-emerald-500 { color: var(--green) !important; }
+main.min-h-screen .text-rose-400,
+main.min-h-screen .text-red-400 { color: var(--red) !important; }
+main.min-h-screen .text-amber-400 { color: #a45c00 !important; }
 
 /* Scrollbars */
-main.min-h-screen * {
-  scrollbar-width: thin;
-  scrollbar-color: #263241 transparent;
-}
-
-main.min-h-screen *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-main.min-h-screen *::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-main.min-h-screen *::-webkit-scrollbar-thumb {
-  background: #263241;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  border-radius: 999px;
-}
-
-main.min-h-screen *::-webkit-scrollbar-thumb:hover {
-  background: #344356;
-  background-clip: padding-box;
-}
-
-/* -------------------------------------------------------------------------- */
-/* Responsive collapse                                                        */
-/* -------------------------------------------------------------------------- */
+main.min-h-screen * { scrollbar-width: thin; scrollbar-color: #aaa59a transparent; }
+main.min-h-screen *::-webkit-scrollbar { width: 8px; height: 8px; }
+main.min-h-screen *::-webkit-scrollbar-track { background: transparent; }
+main.min-h-screen *::-webkit-scrollbar-thumb { background: #aaa59a; border: 2px solid transparent; background-clip: padding-box; border-radius: 0; }
+main.min-h-screen *::-webkit-scrollbar-thumb:hover { background: #77736a; background-clip: padding-box; }
 
 @media (max-width: 1180px) {
-  main.min-h-screen > section {
-    grid-template-columns: 220px minmax(0, 1fr) 320px;
-  }
+  main.min-h-screen > section { grid-template-columns: 230px minmax(0,1fr) 300px; }
 }
-
 @media (max-width: 960px) {
-  body {
-    overflow: auto;
-  }
-
-  main.min-h-screen {
-    height: auto;
-    min-height: 100dvh !important;
-  }
-
-  main.min-h-screen > section {
-    min-height: calc(100dvh - 58px) !important;
-    grid-template-columns: 210px minmax(0, 1fr);
-  }
-
-  main.min-h-screen > section > aside:last-child {
-    display: none;
-  }
+  body { overflow: auto; }
+  main.min-h-screen { height: auto; min-height: 100dvh !important; }
+  main.min-h-screen > section { min-height: calc(100dvh - 72px) !important; grid-template-columns: 220px minmax(0,1fr); }
+  main.min-h-screen > section > aside:last-child { display: none; }
 }
-
 @media (max-width: 700px) {
-  main.min-h-screen > section {
-    grid-template-columns: 1fr;
-  }
-
-  main.min-h-screen > section > aside:first-child {
-    display: none;
-  }
-
-  main.min-h-screen > header {
-    padding: 0 10px !important;
-  }
-
-  main.min-h-screen > header .hidden {
-    display: none !important;
-  }
+  main.min-h-screen > section { grid-template-columns: 1fr; }
+  main.min-h-screen > section > aside:first-child { display: none; }
+  main.min-h-screen > header { padding: 0 12px !important; }
+  main.min-h-screen > header .hidden { display: none !important; }
 }
