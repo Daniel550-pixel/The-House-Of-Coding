@@ -34,6 +34,7 @@ Thumbs.db
 
 # Local runtime/test output
 tests/runtime/.cache/
+data/agent-sessions.json
 
 # Temporary files
 *.tmp
