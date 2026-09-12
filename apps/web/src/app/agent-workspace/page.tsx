@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Bot, Bug, CheckCircle2, Code2, FileCode2, FlaskConical, FolderOpen, GitPullRequest, Play, RefreshCw, Send, ShieldCheck, Sparkles, Terminal, X, Zap } from "lucide-react"
+import { Bot, Bug, CheckCircle2, Code2, FileCode2, FlaskConical, FolderOpen, Play, RefreshCw, Send, ShieldCheck, Sparkles, Terminal, X, Zap } from "lucide-react"
 import { AutonomousControls, type AgentAction } from "../../components/autonomous-controls"
 import { createAgentSession, executeFile, getLanguages, getProjectFile, getProjectFiles, saveProjectFile, subscribeAgentSession, type AgentEvent, type AgentSession, type LanguageRuntime, type WorkspaceFile } from "../../lib/api"
 
