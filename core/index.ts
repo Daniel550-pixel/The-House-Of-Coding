@@ -2,6 +2,7 @@
 export * from "./llm/types"
 
 export { OpenAIProvider } from "./llm/providers/openai"
+export { GeminiProvider } from "./llm/providers/gemini"
 export { DevelopmentLLMProvider } from "./llm/providers/development"
 
 export * from "./agents"
