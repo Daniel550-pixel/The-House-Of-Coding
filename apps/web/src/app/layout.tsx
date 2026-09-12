@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "The House Of Coding",
-  description: "AI-native coding environment with workspace, agents, execution, testing, debugging, and review.",
+  title: "The House Of Coding — AI Coding Workspace",
+  description: "An AI-native coding workspace for projects, agents, execution, testing, debugging, review, and autonomous development.",
 };
 
 export default function RootLayout({
