@@ -65,8 +65,36 @@ export default function AgentWorkspacePage() {
     } catch (error) { setStatus(error instanceof Error ? error.message : "Unable to open file") }
   }, [tabs, log])
 
-  useEffect(() => { void refresh() }, [refresh])
-  useEffect(() => { if (!selectedFile && files.some(file => file.path === DEFAULT_FILE)) void openFile(DEFAULT_FILE) }, [files, selectedFile, openFile])
+  useEffect(() => {
+    let ignore = false
+    async function loadInitial() {
+      try {
+        const [fileData, languageData] = await Promise.all([getProjectFiles(PROJECT_ID), getLanguages()])
+        if (ignore) return
+        setFiles(fileData.files)
+        setLanguages(languageData.languages)
+        setStatus("READY")
+        log(`Workspace synchronized · ${fileData.files.length} files`)
+
+        if (fileData.files.some(f => f.path === DEFAULT_FILE)) {
+          const defaultFileContent = await getProjectFile(PROJECT_ID, DEFAULT_FILE)
+          if (!ignore) {
+            setTabs([{ path: DEFAULT_FILE, content: defaultFileContent.content, savedContent: defaultFileContent.content }])
+            setSelectedFile(DEFAULT_FILE)
+            log(`Opened ${nameOf(DEFAULT_FILE)}`)
+          }
+        }
+      } catch (error) {
+        if (!ignore) {
+          setStatus(error instanceof Error ? error.message : "Workspace unavailable")
+        }
+      }
+    }
+    void loadInitial()
+    return () => {
+      ignore = true
+    }
+  }, [log])
 
   function updateCode(content: string) { setTabs(current => current.map(tab => tab.path === selectedFile ? { ...tab, content } : tab)) }
 

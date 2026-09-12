@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { BrainCircuit, Bug, CheckCircle2, Code2, FlaskConical, ShieldCheck, WandSparkles, Zap, Pause, Play, RotateCcw, Radio, GitPullRequest, CircleDot } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { BrainCircuit, Bug, Code2, FlaskConical, ShieldCheck, WandSparkles, Zap, Pause, RotateCcw, Radio, GitPullRequest, CircleDot } from "lucide-react"
 import { analyzeTests, debugCode, generateCode, reviewCode, runAutonomous } from "../lib/api"
 
 export type AgentAction = "code" | "debug" | "test" | "review" | "refactor" | "auto"
@@ -51,103 +51,106 @@ export function AutonomousControls({
     setEvents(current => [...current.slice(-5), message])
   }
 
-  async function run(action: AgentAction) {
-    if (running) return
-    setRunning(action)
-    setState("running")
-    setPhase(action === "auto" ? 0 : action === "code" || action === "refactor" ? 1 : action === "test" || action === "review" ? 3 : 2)
-    setStartedAt(Date.now())
-    setElapsed(0)
-    setEvents([])
+  const run = useCallback(
+    async (action: AgentAction) => {
+      if (running) return
+      setRunning(action)
+      setState("running")
+      setPhase(action === "auto" ? 0 : action === "code" || action === "refactor" ? 1 : action === "test" || action === "review" ? 3 : 2)
+      setStartedAt(Date.now())
+      setElapsed(0)
+      setEvents([])
 
-    const baseTask = instruction.trim() || "Inspect the current file and improve it without breaking its behavior."
-    const selectedContext = selection?.trim()
-      ? `\n\nThe user selected this exact code. Treat it as the primary scope for this action:\n---\n${selection}\n---`
-      : ""
-    const task = `${baseTask}${selectedContext}`
-
-    try {
-      log(`DISPATCH  ${action.toUpperCase()} agent`)
-      onOutput(`Starting ${action.toUpperCase()} agent...\n`, action)
-
-      if (action === "code" || action === "refactor") {
-        setPhase(1)
-        log("CODE     generating proposal")
-        const result = await generateCode({
-          instruction: `${task}\n\nFocus on the selected file when possible: ${filePath}${action === "refactor" ? "\n\nRefactor the selected code for clarity, maintainability, and correctness while preserving behavior." : ""}`,
-          language,
-          projectId: "house",
-          apply: false
-        })
-        const files = result.result.files?.length ? `\n\nChanged files:\n${result.result.files.join("\n")}` : ""
-        setPhase(4)
-        if (result.result.changes?.length) {
-          log(`REVIEW   ${result.result.changes.length} file change(s) awaiting approval`)
-          setState("waiting")
-          onProposal?.({ changes: result.result.changes, action, summary: result.result.response ?? "AI proposed changes." })
-          onOutput(`Proposal ready: ${result.result.changes.length} file change(s). Review the diff before applying.`, action)
-        } else {
-          log("VERIFY   no file changes proposed")
-          setState("complete")
-          onOutput(`${result.result.response ?? "No response returned."}${files}`, action)
-        }
-        return
-      }
-
-      if (action === "debug") {
-        setPhase(2)
-        log("EXECUTE  inspecting failure context")
-        const result = await debugCode({ error: task, code, language })
-        setPhase(4)
-        log("REVIEW   debugger analysis ready")
-        setState("complete")
-        onOutput(result.result.content || "Debugger returned no analysis.", action)
-        return
-      }
-
-      if (action === "test") {
-        setPhase(3)
-        log("VERIFY   analyzing test coverage")
-        const result = await analyzeTests({ path: filePath, language })
-        setPhase(4)
-        log("REVIEW   test analysis ready")
-        setState("complete")
-        onOutput(result.result.content || "Test agent returned no analysis.", action)
-        return
-      }
-
-      if (action === "review") {
-        setPhase(4)
-        log("REVIEW   auditing target workspace")
-        const result = await reviewCode({ path: filePath, code, language })
-        log("VERIFY   review complete")
-        setState("complete")
-        onOutput(result.result.content || "Reviewer returned no analysis.", action)
-        return
-      }
-
-      setPhase(0)
-      log("PLAN     autonomous loop initialized")
-      const result = await runAutonomous({ instruction: task, language, filePath, maxIterations: 3 })
-      const eventsText = result.result.events.map(event => `[${event.iteration}] ${event.stage.toUpperCase()}: ${event.message}`).join("\n")
-      const execution = result.result.execution
-        ? `\n\nEXIT ${result.result.execution.exitCode}\nSTDOUT:\n${result.result.execution.stdout || "(none)"}\nSTDERR:\n${result.result.execution.stderr || "(none)"}`
+      const baseTask = instruction.trim() || "Inspect the current file and improve it without breaking its behavior."
+      const selectedContext = selection?.trim()
+        ? `\n\nThe user selected this exact code. Treat it as the primary scope for this action:\n---\n${selection}\n---`
         : ""
-      const analysis = result.result.debug?.content || result.result.tests?.content || ""
-      setPhase(4)
-      log("VERIFY   autonomous cycle returned")
-      setState("complete")
-      onOutput(`${eventsText}${execution}${analysis ? `\n\nAGENT ANALYSIS:\n${analysis}` : ""}`, action)
-      onFilesChanged?.()
-    } catch (error) {
-      setState("complete")
-      log("FAULT    agent execution failed")
-      onOutput(error instanceof Error ? error.message : `${action} failed`, action)
-    } finally {
-      setRunning(null)
-      setStartedAt(null)
-    }
-  }
+      const task = `${baseTask}${selectedContext}`
+
+      try {
+        log(`DISPATCH  ${action.toUpperCase()} agent`)
+        onOutput(`Starting ${action.toUpperCase()} agent...\n`, action)
+
+        if (action === "code" || action === "refactor") {
+          setPhase(1)
+          log("CODE     generating proposal")
+          const result = await generateCode({
+            instruction: `${task}\n\nFocus on the selected file when possible: ${filePath}${action === "refactor" ? "\n\nRefactor the selected code for clarity, maintainability, and correctness while preserving behavior." : ""}`,
+            language,
+            projectId: "house",
+            apply: false
+          })
+          const files = result.result.files?.length ? `\n\nChanged files:\n${result.result.files.join("\n")}` : ""
+          setPhase(4)
+          if (result.result.changes?.length) {
+            log(`REVIEW   ${result.result.changes.length} file change(s) awaiting approval`)
+            setState("waiting")
+            onProposal?.({ changes: result.result.changes, action, summary: result.result.response ?? "AI proposed changes." })
+            onOutput(`Proposal ready: ${result.result.changes.length} file change(s). Review the diff before applying.`, action)
+          } else {
+            log("VERIFY   no file changes proposed")
+            setState("complete")
+            onOutput(`${result.result.response ?? "No response returned."}${files}`, action)
+          }
+          return
+        }
+
+        if (action === "debug") {
+          setPhase(2)
+          log("EXECUTE  inspecting failure context")
+          const result = await debugCode({ error: task, code, language })
+          setPhase(4)
+          log("REVIEW   debugger analysis ready")
+          setState("complete")
+          onOutput(result.result.content || "Debugger returned no analysis.", action)
+          return
+        }
+
+        if (action === "test") {
+          setPhase(3)
+          log("VERIFY   analyzing test coverage")
+          const result = await analyzeTests({ path: filePath, language })
+          setPhase(4)
+          log("REVIEW   test analysis ready")
+          setState("complete")
+          onOutput(result.result.content || "Test agent returned no analysis.", action)
+          return
+        }
+
+        if (action === "review") {
+          setPhase(4)
+          log("REVIEW   auditing target workspace")
+          const result = await reviewCode({ path: filePath, code, language })
+          log("VERIFY   review complete")
+          setState("complete")
+          onOutput(result.result.content || "Reviewer returned no analysis.", action)
+          return
+        }
+
+        setPhase(0)
+        log("PLAN     autonomous loop initialized")
+        const result = await runAutonomous({ instruction: task, language, filePath, maxIterations: 3 })
+        const eventsText = result.result.events.map(event => `[${event.iteration}] ${event.stage.toUpperCase()}: ${event.message}`).join("\n")
+        const execution = result.result.execution
+          ? `\n\nEXIT ${result.result.execution.exitCode}\nSTDOUT:\n${result.result.execution.stdout || "(none)"}\nSTDERR:\n${result.result.execution.stderr || "(none)"}`
+          : ""
+        const analysis = result.result.debug?.content || result.result.tests?.content || ""
+        setPhase(4)
+        log("VERIFY   autonomous cycle returned")
+        setState("complete")
+        onOutput(`${eventsText}${execution}${analysis ? `\n\nAGENT ANALYSIS:\n${analysis}` : ""}`, action)
+        onFilesChanged?.()
+      } catch (error) {
+        setState("complete")
+        log("FAULT    agent execution failed")
+        onOutput(error instanceof Error ? error.message : `${action} failed`, action)
+      } finally {
+        setRunning(null)
+        setStartedAt(null)
+      }
+    },
+    [running, instruction, selection, onOutput, filePath, language, onProposal, code, onFilesChanged]
+  )
 
   const actions: Array<{ id: AgentAction; label: string; description: string; icon: typeof Code2 }> = [
     { id: "code", label: "BUILD", description: "propose change", icon: Code2 },

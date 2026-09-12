@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import "./design-lab.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,14 +24,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;800;900&family=Share+Tech+Mono&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body className="min-h-full flex flex-col bg-[#030810] text-[#00f3ff] antialiased selection:bg-[#00f3ff]/30 selection:text-white">
         {children}
       </body>
