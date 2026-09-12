@@ -9,14 +9,33 @@ import {
     CodingAgent,
     DebuggerAgent,
     TesterAgent,
-    ReviewerAgent
+    ReviewerAgent,
+    GeminiProvider
 } from "../../../../core"
 
 const llm = new LLMRouter()
-if (process.env.OPENAI_API_KEY) {
+
+const preferredProvider = (process.env.LLM_PROVIDER ?? "").trim().toLowerCase()
+
+if (preferredProvider === "gemini" && process.env.GEMINI_API_KEY) {
+    llm.register(GeminiProvider)
+}
+
+if (preferredProvider !== "gemini" && process.env.OPENAI_API_KEY) {
     llm.register(OpenAIProvider)
 }
-llm.register(DevelopmentLLMProvider)
+
+if (preferredProvider !== "openai" && process.env.GEMINI_API_KEY && !llm.has("gemini")) {
+    llm.register(GeminiProvider)
+}
+
+if (preferredProvider !== "gemini" && process.env.OPENAI_API_KEY && !llm.has("openai")) {
+    llm.register(OpenAIProvider)
+}
+
+if (llm.providersList().length === 0) {
+    llm.register(DevelopmentLLMProvider)
+}
 
 const projectRoot = process.cwd().replace(/[\\\/]apps[\\\/]web$/, "")
 const projectService = new ProjectService(projectRoot)
