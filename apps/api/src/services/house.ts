@@ -1,5 +1,5 @@
 import "dotenv/config"
-﻿import {
+import {
     LLMRouter,
     OpenAIProvider,
     RuntimeRegistry,
@@ -9,11 +9,29 @@ import "dotenv/config"
     CodingAgent,
     DebuggerAgent,
     TesterAgent,
-    ReviewerAgent
+    ReviewerAgent,
+    GeminiProvider
 } from "../../../../core"
 
 const llm = new LLMRouter()
-llm.register(OpenAIProvider)
+
+const preferredProvider = (process.env.LLM_PROVIDER ?? "").trim().toLowerCase()
+
+if (preferredProvider === "gemini" && process.env.GEMINI_API_KEY) {
+    llm.register(GeminiProvider)
+}
+
+if (preferredProvider !== "gemini" && process.env.OPENAI_API_KEY) {
+    llm.register(OpenAIProvider)
+}
+
+if (preferredProvider !== "openai" && process.env.GEMINI_API_KEY && !llm.has("gemini")) {
+    llm.register(GeminiProvider)
+}
+
+if (preferredProvider !== "gemini" && process.env.OPENAI_API_KEY && !llm.has("openai")) {
+    llm.register(OpenAIProvider)
+}
 
 const projectRoot = process.cwd().replace(/[\\\/]apps[\\\/]api$/, "")
 const projectService = new ProjectService(projectRoot)
