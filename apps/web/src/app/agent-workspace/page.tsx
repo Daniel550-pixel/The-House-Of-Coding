@@ -1,9 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Bot, Bug, CheckCircle2, Code2, FileCode2, FlaskConical, FolderOpen, GitPullRequest, Play, RefreshCw, RotateCcw, Send, ShieldCheck, Sparkles, Terminal, X, Zap } from "lucide-react"
+import { Bot, Bug, CheckCircle2, Code2, FileCode2, FlaskConical, FolderOpen, GitPullRequest, Play, RefreshCw, Send, ShieldCheck, Sparkles, Terminal, X, Zap } from "lucide-react"
 import { AutonomousControls, type AgentAction } from "../../components/autonomous-controls"
-import { executeFile, getLanguages, getProjectFile, getProjectFiles, saveProjectFile, type LanguageRuntime, type WorkspaceFile } from "../../lib/api"
+import { createAgentSession, executeFile, getLanguages, getProjectFile, getProjectFiles, saveProjectFile, subscribeAgentSession, type AgentEvent, type AgentSession, type LanguageRuntime, type WorkspaceFile } from "../../lib/api"
 
 type Tab = { path: string; content: string; savedContent: string }
 type Proposal = { changes: Array<{ path: string; content: string }>; action: AgentAction; summary: string }
@@ -30,6 +30,8 @@ export default function AgentWorkspacePage() {
   const [proposal, setProposal] = useState<Proposal | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [running, setRunning] = useState(false)
+  const [session, setSession] = useState<AgentSession | null>(null)
+  const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([])
   const [activity, setActivity] = useState<string[]>(["Runtime initialized", "Human control layer online", "Workspace awaiting mission"])
 
   const active = tabs.find(tab => tab.path === selectedFile)
@@ -90,6 +92,51 @@ export default function AgentWorkspacePage() {
     finally { setRunning(false) }
   }
 
+  async function dispatchMission() {
+    if (!selectedFile) {
+      setStatus("SELECT A TARGET")
+      return
+    }
+
+    const instruction = prompt.trim() || "Inspect the selected file, identify the highest-value improvement, and implement it safely."
+    setStatus("DISPATCHING")
+    setRunning(true)
+    setAgentEvents([])
+    log(`Mission dispatched · ${nameOf(selectedFile)}`)
+
+    try {
+      const response = await createAgentSession({
+        instruction,
+        language,
+        filePath: selectedFile,
+        maxIterations: 3
+      })
+
+      setSession(response.session)
+      log(`Agent session ${response.session.id} online`)
+
+      const unsubscribe = subscribeAgentSession(
+        response.session.id,
+        event => {
+          setAgentEvents(current => [...current.slice(-19), event])
+          setStatus(event.stage.toUpperCase())
+          log(`${event.stage.toUpperCase()} · ${event.message}`)
+          if (event.stage === "complete" || event.stage === "failed") {
+            setRunning(false)
+            void refresh()
+          }
+        },
+        currentSession => setSession(currentSession),
+        () => log("Agent event stream disconnected")
+      )
+
+      window.setTimeout(() => unsubscribe(), 10 * 60 * 1000)
+    } catch (error) {
+      setRunning(false)
+      setStatus(error instanceof Error ? error.message : "Mission dispatch failed")
+    }
+  }
+
   async function applyProposal() {
     if (!proposal) return
     setStatus("APPLYING")
@@ -125,17 +172,17 @@ export default function AgentWorkspacePage() {
           <div className="agent-mission-bar"><div><span>ACTIVE TARGET</span><strong>{selectedFile || "Select a workspace file"}</strong></div><div className="agent-target-meta">{language.toUpperCase()} · {active && active.content !== active.savedContent ? "MODIFIED" : "SYNCHRONIZED"}</div><button onClick={() => void execute()} disabled={running || !selectedFile}><Play size={13} /> {running ? "RUNNING" : "EXECUTE"}</button></div>
           <div className="agent-tabs">{tabs.map(tab => <button key={tab.path} onClick={() => setSelectedFile(tab.path)} className={tab.path === selectedFile ? "active" : ""}>{nameOf(tab.path)}{tab.content !== tab.savedContent && <i />}</button>)}</div>
           <div className="agent-editor"><div className="agent-gutter">{code.split("\n").map((_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={code} onChange={event => updateCode(event.target.value)} spellCheck={false} /></div>
-          <div className="agent-output"><div className="agent-output-title"><Terminal size={13} /> EXECUTION / AGENT STREAM <span>{status}</span></div><pre>{output || "No active output. Dispatch a mission or execute the target."}</pre></div>
+          <div className="agent-output"><div className="agent-output-title"><Terminal size={13} /> EXECUTION / AGENT STREAM <span>{session ? `${session.status.toUpperCase()} · ${session.id}` : status}</span></div><pre>{output || agentEvents.map(event => `[${event.stage.toUpperCase()}] ${event.message}`).join("\n") || "No active output. Dispatch a mission or execute the target."}</pre></div>
         </section>
 
         <aside className="agent-workspace-right">
-          <section className="agent-mission-card"><div className="agent-panel-title"><Sparkles size={13} /> MISSION CONTROL</div><textarea value={prompt} onChange={event => setPrompt(event.target.value)} placeholder="Tell the agent what to build, debug, test, review or refine..." /><button className="mission-dispatch" onClick={() => { setStatus("MISSION READY"); log(`Mission staged · ${prompt.trim() || "inspect workspace"}`) }}><Send size={13} /> STAGE MISSION</button></section>
+          <section className="agent-mission-card"><div className="agent-panel-title"><Sparkles size={13} /> MISSION CONTROL</div><textarea value={prompt} onChange={event => setPrompt(event.target.value)} placeholder="Tell the agent what to build, debug, test, review or refine..." /><button className="mission-dispatch" onClick={() => void dispatchMission()} disabled={running || !selectedFile}><Send size={13} /> {running ? "MISSION RUNNING" : "DISPATCH MISSION"}</button></section>
 
           <section className="agent-fleet-card"><div className="agent-panel-title"><GitPullRequest size={13} /> AGENT FLEET <span>6</span></div><div className="agent-fleet-grid-mini"><div><Code2 /><b>BUILD</b><small>propose</small></div><div><Bug /><b>DEBUG</b><small>trace</small></div><div><FlaskConical /><b>TEST</b><small>verify</small></div><div><ShieldCheck /><b>REVIEW</b><small>audit</small></div><div><Sparkles /><b>REFINE</b><small>improve</small></div><div className="auto"><Zap /><b>AUTONOMOUS</b><small>full loop</small></div></div></section>
 
           <AutonomousControls language={language} filePath={selectedFile} code={code} instruction={prompt} onProposal={proposalValue => { setProposal(proposalValue); setStatus("AWAITING APPROVAL"); log(`Proposal generated · ${proposalValue.changes.length} file(s)`) }} onOutput={value => { setOutput(value); setStatus("RESULT AVAILABLE"); log("Agent returned result") }} onFilesChanged={() => void refresh()} />
 
-          <section className="agent-activity-card"><div className="agent-panel-title"><Terminal size={13} /> LIVE ACTIVITY</div>{activity.map((item, index) => <div className="agent-activity-row" key={`${item}-${index}`}><span>{String(index + 1).padStart(2, "0")}</span>{item}</div>)}</section>
+          <section className="agent-activity-card"><div className="agent-panel-title"><Terminal size={13} /> LIVE AGENT ACTIVITY <span>{agentEvents.length}</span></div>{agentEvents.length ? agentEvents.slice(-8).map((event, index) => <div className="agent-activity-row" key={`${event.iteration}-${event.stage}-${index}`}><span>{event.stage.toUpperCase()}</span>{event.message}</div>) : activity.map((item, index) => <div className="agent-activity-row" key={`${item}-${index}`}><span>{String(index + 1).padStart(2, "0")}</span>{item}</div>)}</section>
         </aside>
       </div>
 
