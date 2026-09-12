@@ -33,10 +33,7 @@ export class AutonomousCodingLoop {
     private readonly workspace: WorkspaceManager
   ) {}
 
-  async run(
-    initialRequest: AutonomousLoopRequest,
-    onEvent?: (event: AutonomousLoopEvent) => void
-  ) {
+  async run(initialRequest: AutonomousLoopRequest, onEvent?: (event: AutonomousLoopEvent) => void) {
     let request = { ...initialRequest }
     const maxIterations = Math.max(1, Math.min(request.maxIterations ?? 3, 5))
     const events: AutonomousLoopEvent[] = []
@@ -46,9 +43,10 @@ export class AutonomousCodingLoop {
     }
     const timed = async <T>(event: Omit<AutonomousLoopEvent, "durationMs">, operation: () => Promise<T>) => {
       const started = Date.now()
-      emit(event)
       const result = await operation()
-      return { result, durationMs: Date.now() - started }
+      const completed = { ...event, durationMs: Date.now() - started }
+      emit(completed)
+      return { result, durationMs: completed.durationMs }
     }
 
     for (let iteration = 1; iteration <= maxIterations; iteration += 1) {
@@ -58,22 +56,11 @@ export class AutonomousCodingLoop {
         agent: "coding",
         action: "analyze-and-apply",
         nextAgent: "runtime",
-        message: "Coding Agent analyzing workspace and applying changes."
-      }, () => this.coder.execute({
-        instruction: request.instruction,
-        language: request.language,
-        apply: true
-      }))
-      events[events.length - 1].durationMs = coding.durationMs
+        message: "Coding Agent analyzed the workspace and applied changes."
+      }, () => this.coder.execute({ instruction: request.instruction, language: request.language, apply: true }))
 
       if (coding.result.parsed === false) {
-        emit({
-          iteration,
-          stage: "failed",
-          agent: "orchestrator",
-          action: "abort",
-          message: "Coding Agent returned an unstructured response; no autonomous execution was attempted."
-        })
+        emit({ iteration, stage: "failed", agent: "orchestrator", action: "abort", message: "Coding Agent returned an unstructured response; no autonomous execution was attempted." })
         return { success: false, iteration, events, code: coding.result }
       }
 
@@ -83,16 +70,11 @@ export class AutonomousCodingLoop {
         agent: "runtime",
         action: "execute-target",
         nextAgent: "tester",
-        message: `Executing ${request.filePath}.`
+        message: `Runtime executed ${request.filePath}.`
       }, async () => {
         const absolute = this.workspace.resolveSafe(request.filePath)
-        return this.execution.execute({
-          language: request.language,
-          filePath: absolute,
-          workingDirectory: this.workspace.root
-        })
+        return this.execution.execute({ language: request.language, filePath: absolute, workingDirectory: this.workspace.root })
       })
-      events[events.length - 1].durationMs = execution.durationMs
 
       if (execution.result.success) {
         const testing = await timed({
@@ -101,29 +83,15 @@ export class AutonomousCodingLoop {
           agent: "tester",
           action: "analyze-tests",
           nextAgent: "orchestrator",
-          message: "Execution succeeded; requesting test analysis."
+          message: "Tester Agent analyzed the implementation after successful execution."
         }, async () => {
           const code = await this.workspace.readFile(request.filePath)
           return this.tester.analyze({ code, language: request.language })
         })
-        events[events.length - 1].durationMs = testing.durationMs
 
-        emit({
-          iteration,
-          stage: "complete",
-          agent: "orchestrator",
-          action: "complete-session",
-          message: "Autonomous coding loop completed successfully."
-        })
+        emit({ iteration, stage: "complete", agent: "orchestrator", action: "complete-session", message: "Orchestrator completed the autonomous coding loop successfully." })
 
-        return {
-          success: true,
-          iteration,
-          events,
-          code: coding.result,
-          execution: execution.result,
-          tests: testing.result
-        }
+        return { success: true, iteration, events, code: coding.result, execution: execution.result, tests: testing.result }
       }
 
       const debugging = await timed({
@@ -132,34 +100,15 @@ export class AutonomousCodingLoop {
         agent: "debugger",
         action: "diagnose-failure",
         nextAgent: iteration === maxIterations ? "orchestrator" : "coding",
-        message: "Execution failed; Debugger Agent analyzing the failure."
+        message: "Debugger Agent diagnosed the execution failure."
       }, async () => {
         const code = await this.workspace.readFile(request.filePath).catch(() => undefined)
-        return this.debuggerAgent.diagnose({
-          error: `${execution.result.stderr}\nExit code: ${execution.result.exitCode}`,
-          code,
-          language: request.language
-        })
+        return this.debuggerAgent.diagnose({ error: `${execution.result.stderr}\nExit code: ${execution.result.exitCode}`, code, language: request.language })
       })
-      events[events.length - 1].durationMs = debugging.durationMs
 
       if (iteration === maxIterations) {
-        emit({
-          iteration,
-          stage: "failed",
-          agent: "orchestrator",
-          action: "max-iterations",
-          message: "Maximum autonomous iterations reached."
-        })
-
-        return {
-          success: false,
-          iteration,
-          events,
-          code: coding.result,
-          execution: execution.result,
-          debug: debugging.result
-        }
+        emit({ iteration, stage: "failed", agent: "orchestrator", action: "max-iterations", message: "Orchestrator stopped after reaching the maximum autonomous iterations." })
+        return { success: false, iteration, events, code: coding.result, execution: execution.result, debug: debugging.result }
       }
 
       request = {
@@ -168,10 +117,6 @@ export class AutonomousCodingLoop {
       }
     }
 
-    return {
-      success: false,
-      iteration: maxIterations,
-      events
-    }
+    return { success: false, iteration: maxIterations, events }
   }
 }
