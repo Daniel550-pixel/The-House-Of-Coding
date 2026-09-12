@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { AudioLines, BrainCircuit, Bug, Code2, Crosshair, EyeOff, FlaskConical, Gauge, GitPullRequest, Pause, Radio, RotateCcw, Shield, ShieldCheck, Terminal, Volume2, VolumeX, WandSparkles, Zap } from "lucide-react"
-import { analyzeTests, debugCode, generateCode, reviewCode, runAutonomous, type AgentEvent, type AgentSession } from "../lib/api"
+import { analyzeTests, debugCode, generateCode, getAgentSessions, reviewCode, runAutonomous, subscribeAgentSession, type AgentEvent, type AgentSession } from "../lib/api"
 
 export type AgentAction = "code" | "debug" | "test" | "review" | "refactor" | "auto"
 type AgentState = "idle" | "running" | "waiting" | "complete"
@@ -23,6 +23,15 @@ const radarAgents: Array<{ id: AgentEvent["agent"]; label: string; x: number; y:
   { id: "tester", label: "TEST", x: 280, y: 125 },
   { id: "orchestrator", label: "ORCH", x: 325, y: 285 }
 ]
+
+const actionAgentMap: Record<AgentAction, AgentEvent["agent"]> = {
+  code: "coding",
+  debug: "debugger",
+  test: "tester",
+  review: "orchestrator",
+  refactor: "coding",
+  auto: "orchestrator"
+}
 
 export function AutonomousControls({
   language,
@@ -62,6 +71,8 @@ export function AutonomousControls({
   const [radarZoom, setRadarZoom] = useState(1)
   const [targetLocked, setTargetLocked] = useState(false)
   const [telemetryTick, setTelemetryTick] = useState(0)
+  const [observedSession, setObservedSession] = useState<AgentSession | null>(null)
+  const [observedEvents, setObservedEvents] = useState<AgentEvent[]>([])
 
   useEffect(() => {
     if (!startedAt) return
@@ -81,6 +92,49 @@ export function AutonomousControls({
     return () => window.clearInterval(timer)
   }, [])
 
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined
+    let linkedId = ""
+    let cancelled = false
+
+    const syncSession = async () => {
+      if (!filePath || runtimeSession) return
+      try {
+        const response = await getAgentSessions(10)
+        const candidate = response.sessions.find(item => item.request.filePath === filePath && (item.status === "running" || item.status === "queued"))
+          ?? response.sessions.find(item => item.request.filePath === filePath)
+        if (!candidate || cancelled) return
+        if (candidate.id === linkedId) {
+          setObservedSession(candidate)
+          return
+        }
+        unsubscribe?.()
+        linkedId = candidate.id
+        setObservedSession(candidate)
+        setObservedEvents(candidate.events)
+        unsubscribe = subscribeAgentSession(candidate.id, event => {
+          setObservedEvents(current => {
+            if (current[current.length - 1] === event) return current
+            return [...current, event]
+          })
+        }, session => {
+          setObservedSession(session)
+          setObservedEvents(session.events)
+        })
+      } catch {
+        // HUD observability must not interfere with the primary workspace.
+      }
+    }
+
+    void syncSession()
+    const timer = window.setInterval(() => { void syncSession() }, 2000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      unsubscribe?.()
+    }
+  }, [filePath, runtimeSession])
+
   const elapsedLabel = useMemo(() => {
     const seconds = elapsed / 1000
     return seconds < 60 ? `${seconds.toFixed(1)}s` : `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`
@@ -95,22 +149,24 @@ export function AutonomousControls({
     freq: (55 + Math.sin(telemetryTick * 0.4) * 3.8).toFixed(1)
   }), [telemetryTick])
 
-  const liveEvent = runtimeEvents[runtimeEvents.length - 1]
-  const liveAgent = runtimeSession?.activeAgent ?? liveEvent?.agent
-  const liveStage = runtimeSession?.activeAction ?? liveEvent?.stage ?? "standby"
-  const liveStatus = runtimeSession?.status ?? (running ? "running" : state)
+  const activeSession = runtimeSession ?? observedSession
+  const activeEvents = runtimeEvents.length ? runtimeEvents : observedEvents
+  const liveEvent = activeEvents[activeEvents.length - 1]
+  const liveAgent = activeSession?.activeAgent ?? liveEvent?.agent
+  const liveStage = activeSession?.activeAction ?? liveEvent?.stage ?? "standby"
+  const liveStatus = activeSession?.status ?? (running ? "running" : state)
   const sessionActive = liveStatus === "running" || liveStatus === "queued"
   const liveNodeIndex = liveAgent ? radarAgents.findIndex(agent => agent.id === liveAgent) : -1
-  const targetStatus = approvalRequired || state === "waiting" ? "APPROVAL REQUIRED" : runtimeSession?.status === "completed" ? "SESSION COMPLETE" : sessionActive ? "TRACKING" : targetLocked ? "TARGET LOCKED [TGT-01]" : "SEARCHING"
+  const targetStatus = approvalRequired || state === "waiting" ? "APPROVAL REQUIRED" : activeSession?.status === "failed" ? "SESSION FAILED" : activeSession?.status === "completed" ? "SESSION COMPLETE" : sessionActive ? "TRACKING" : targetLocked ? "TARGET LOCKED [TGT-01]" : "SEARCHING"
 
   useEffect(() => {
-    if (!runtimeEvents.length) return
-    const latest = runtimeEvents[runtimeEvents.length - 1]
+    if (!activeEvents.length) return
+    const latest = activeEvents[activeEvents.length - 1]
     const entry = `${latest.stage.toUpperCase()} · ${latest.agent.toUpperCase()} · ${latest.message}`
     setEvents(current => current[current.length - 1] === entry ? current : [...current.slice(-5), entry])
     const nextPhase = latest.stage === "code" ? 1 : latest.stage === "execute" || latest.stage === "debug" ? 2 : latest.stage === "test" ? 3 : latest.stage === "complete" || latest.stage === "failed" ? 4 : 0
     setPhase(nextPhase)
-  }, [runtimeEvents])
+  }, [activeEvents])
 
   function log(message: string) {
     setEvents(current => [...current.slice(-5), message])
@@ -302,7 +358,7 @@ export function AutonomousControls({
                   <g className="radar-targets">
                     {radarAgents.map((target, index) => {
                       const active = liveNodeIndex === index
-                      const failed = runtimeSession?.status === "failed" && active
+                      const failed = active && activeSession?.status === "failed"
                       return (
                         <g key={target.id} className={`${active ? "active" : ""} ${failed ? "locked" : ""}`}>
                           <circle cx={target.x} cy={target.y} r={active ? 7 : 4} fill="currentColor"/>
@@ -314,7 +370,7 @@ export function AutonomousControls({
                   </g>
                 </g>
                 <text x="300" y="28" textAnchor="middle" className="agent-radar-label">TARGET // {language.toUpperCase()}</text>
-                <text x="300" y="382" textAnchor="middle" className="agent-radar-label">MISSION // {sessionActive ? liveStage.toUpperCase() : runtimeSession?.status === "completed" ? "COMPLETE" : "READY"}</text>
+                <text x="300" y="382" textAnchor="middle" className="agent-radar-label">MISSION // {sessionActive ? String(liveStage).toUpperCase() : activeSession?.status === "completed" ? "COMPLETE" : "READY"}</text>
               </svg>
             </div>
             <div className="agent-radar-stats"><span>MODE: <b>{mode}</b></span><span>AGENTS DETECTED: <b>{radarAgents.length}</b></span><span>STATUS: <b className={targetStatus === "TRACKING" ? "nominal" : targetStatus.includes("REQUIRED") || targetStatus.includes("FAILED") ? "locked-text" : "nominal"}>{targetStatus}</b></span></div>
@@ -329,8 +385,8 @@ export function AutonomousControls({
             <div className="agent-hud-panel-title"><span><Radio size={11}/> AUX READOUTS</span><b>SEC_08</b></div>
             <div className="agent-coordinate-card"><span>TARGET COORDINATES</span><div><strong>{(142.85 + Math.sin(telemetryTick) * 4).toFixed(2)}</strong><strong>{(-89.41 + Math.cos(telemetryTick) * 3).toFixed(2)}</strong><strong>{(512.04 + telemetryTick * 2).toFixed(2)}</strong></div></div>
             <div className="agent-wave"><div><span>FREQUENCY WAVE</span><b>{telemetry.freq} Hz</b></div><div className="agent-wave-line"><span/><span/><span/><span/><span/><span/><span/></div></div>
-            <div className="agent-readout-list"><div><span>ACTIVE AGENT:</span><strong>{liveAgent?.toUpperCase() ?? "NONE"}</strong></div><div><span>ACTIVE STAGE:</span><strong>{String(liveStage).toUpperCase()}</strong></div><div><span>THREAT LEVEL:</span><strong className={runtimeSession?.status === "failed" ? "locked-text" : "nominal"}>{runtimeSession?.status === "failed" ? "FAULT" : sessionActive ? "ACTIVE / MONITORING" : "LOW / NOMINAL"}</strong></div></div>
-            <div className="agent-diagnostics-card"><b>RUNTIME DIAGNOSTICS</b><div><span>RUNTIME</span><strong>{language.toUpperCase()}</strong></div><div><span>LATENCY</span><strong>LIVE</strong></div><div><span>SESSION</span><strong>{String(liveStatus).toUpperCase()}</strong></div><div><span>APPROVAL</span><strong>{approvalRequired || state === "waiting" ? "REQUIRED" : "CLEAR"}</strong></div></div>
+            <div className="agent-readout-list"><div><span>ACTIVE AGENT:</span><strong>{liveAgent?.toUpperCase() ?? "NONE"}</strong></div><div><span>ACTIVE STAGE:</span><strong>{String(liveStage).toUpperCase()}</strong></div><div><span>THREAT LEVEL:</span><strong className={activeSession?.status === "failed" ? "locked-text" : "nominal"}>{activeSession?.status === "failed" ? "FAULT" : sessionActive ? "ACTIVE / MONITORING" : "LOW / NOMINAL"}</strong></div></div>
+            <div className="agent-diagnostics-card"><b>RUNTIME DIAGNOSTICS</b><div><span>RUNTIME</span><strong>{language.toUpperCase()}</strong></div><div><span>LATENCY</span><strong>{activeSession ? "LIVE" : `${(1.2 + telemetryTick % 7 / 10).toFixed(1)}MS`}</strong></div><div><span>SESSION</span><strong>{String(liveStatus).toUpperCase()}</strong></div><div><span>APPROVAL</span><strong>{approvalRequired || state === "waiting" ? "REQUIRED" : "CLEAR"}</strong></div></div>
             <div className="agent-hud-actions">
               <button type="button" onClick={() => { setTargetLocked(value => !value); emitClientLog(targetLocked ? "TARGET LOCK RELEASED" : "TARGET LOCK ENGAGED: TGT-01") }}><Crosshair size={12}/> {targetLocked ? "RELEASE TARGET LOCK" : "TOGGLE TARGET LOCK"}</button>
               <button type="button" onClick={() => emitClientLog(`ACTIVE SONAR PING · ${liveAgent?.toUpperCase() ?? "STANDBY"}`) }><AudioLines size={12}/> EMIT ACTIVE PING</button>
@@ -339,7 +395,7 @@ export function AutonomousControls({
         </div>
 
         <div className="agent-mission-strip">
-          <div><span>CURRENT MISSION</span><strong>{instruction.trim() || "Inspect and improve the active workspace"}</strong><small>{filePath || "No target selected"} · {language} · {runtimeSession?.id?.slice(-8) || "NO SESSION"}</small></div>
+          <div><span>CURRENT MISSION</span><strong>{instruction.trim() || "Inspect and improve the active workspace"}</strong><small>{filePath || "No target selected"} · {language} · {activeSession?.id?.slice(-8) || "NO SESSION"}</small></div>
           <div className="agent-pipeline">{phases.map((item, index) => <span key={item} className={`${index < phase ? "done" : ""} ${index === phase && (running || sessionActive) ? "active" : ""}`}><i>{index + 1}</i>{item}</span>)}</div>
         </div>
 
@@ -348,7 +404,7 @@ export function AutonomousControls({
           <div className="agent-fleet-grid">
             {actions.map(action => {
               const Icon = action.icon
-              const active = running === action.id || liveAgent === ({ code: "coding", debug: "debugger", test: "tester", review: "orchestrator", refactor: "coding", auto: "orchestrator" } as Record<AgentAction, AgentEvent["agent"]>)[action.id]
+              const active = running === action.id || liveAgent === actionAgentMap[action.id]
               return <button key={action.id} onClick={() => void run(action.id)} disabled={!!running} className={active ? "active" : ""}><Icon size={14}/><strong>{active ? "RUNNING" : action.label}</strong><small>{action.description}</small></button>
             })}
             <button onClick={() => void run("auto")} disabled={!!running} className={running === "auto" || liveAgent === "orchestrator" ? "active autonomous" : "autonomous"}><Zap size={14}/><strong>{running === "auto" || liveAgent === "orchestrator" ? "RUNNING" : "AUTONOMOUS"}</strong><small>plan → execute → verify</small></button>
@@ -358,7 +414,7 @@ export function AutonomousControls({
         <div className="agent-activity">
           <div className="agent-subhead"><span>LIVE ACTIVITY</span><span>{soundEnabled ? "AUDIO LINK" : "SILENT LINK"}</span></div>
           <div className="agent-activity-stream">{events.length ? events.map((event, index) => <div key={`${event}-${index}`}><span>{String(index + 1).padStart(2, "0")}</span>{event}</div>) : <span className="agent-idle-message">Runtime ready. Dispatch an agent to begin a mission.</span>}</div>
-          <div className="agent-actions"><button className="agent-secondary-action" disabled={!running}><Pause size={12}/> PAUSE</button><button className="agent-secondary-action" disabled={state === "idle" && !runtimeSession} onClick={() => { setRunning(null); setState("idle"); setPhase(0); setEvents([]) }}><RotateCcw size={12}/> RESET</button><div className="agent-approval-state"><span className={`agent-status-dot ${approvalRequired || state === "waiting" ? "waiting" : liveStatus}`} />{approvalRequired || state === "waiting" ? "HUMAN APPROVAL REQUIRED" : liveStatus === "completed" ? "RESULT AVAILABLE" : "HUMAN CONTROL ENABLED"}</div></div>
+          <div className="agent-actions"><button className="agent-secondary-action" disabled={!running}><Pause size={12}/> PAUSE</button><button className="agent-secondary-action" disabled={state === "idle" && !activeSession} onClick={() => { setRunning(null); setState("idle"); setPhase(0); setEvents([]) }}><RotateCcw size={12}/> RESET</button><div className="agent-approval-state"><span className={`agent-status-dot ${approvalRequired || state === "waiting" ? "waiting" : liveStatus}`} />{approvalRequired || state === "waiting" ? "HUMAN APPROVAL REQUIRED" : liveStatus === "completed" ? "RESULT AVAILABLE" : "HUMAN CONTROL ENABLED"}</div></div>
         </div>
       </div>
     </section>
