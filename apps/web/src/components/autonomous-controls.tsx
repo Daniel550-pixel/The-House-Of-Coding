@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { BrainCircuit, Bug, CheckCircle2, Code2, FlaskConical, ShieldCheck, WandSparkles } from "lucide-react"
+import { BrainCircuit, Bug, CheckCircle2, Code2, FlaskConical, ShieldCheck, WandSparkles, Zap } from "lucide-react"
 import {
   analyzeTests,
   debugCode,
@@ -66,11 +66,7 @@ export function AutonomousControls({
       }
 
       if (action === "debug") {
-        const result = await debugCode({
-          error: task,
-          code,
-          language
-        })
+        const result = await debugCode({ error: task, code, language })
         onOutput(result.result.content || "Debugger returned no analysis.", action)
         return
       }
@@ -87,21 +83,13 @@ export function AutonomousControls({
         return
       }
 
-      const result = await runAutonomous({
-        instruction: task,
-        language,
-        filePath,
-        maxIterations: 3
-      })
-
+      const result = await runAutonomous({ instruction: task, language, filePath, maxIterations: 3 })
       const events = result.result.events
         .map(event => `[${event.iteration}] ${event.stage.toUpperCase()}: ${event.message}`)
         .join("\n")
-
       const execution = result.result.execution
         ? `\n\nEXIT ${result.result.execution.exitCode}\nSTDOUT:\n${result.result.execution.stdout || "(none)"}\nSTDERR:\n${result.result.execution.stderr || "(none)"}`
         : ""
-
       const analysis = result.result.debug?.content || result.result.tests?.content || ""
       onOutput(`${events}${execution}${analysis ? `\n\nAGENT ANALYSIS:\n${analysis}` : ""}`, action)
       onFilesChanged?.()
@@ -112,38 +100,48 @@ export function AutonomousControls({
     }
   }
 
-  const actions: Array<{ id: AgentAction; label: string; icon: typeof Code2 }> = [
-    { id: "code", label: "Code", icon: Code2 },
-    { id: "debug", label: "Debug", icon: Bug },
-    { id: "test", label: "Test", icon: FlaskConical },
-    { id: "review", label: "Review", icon: ShieldCheck },
-    { id: "refactor", label: "Refactor", icon: WandSparkles },
-    { id: "auto", label: "Auto", icon: BrainCircuit }
+  const actions: Array<{ id: AgentAction; label: string; description: string; icon: typeof Code2 }> = [
+    { id: "code", label: "BUILD", description: "write change", icon: Code2 },
+    { id: "debug", label: "DEBUG", description: "find fault", icon: Bug },
+    { id: "test", label: "TEST", description: "inspect tests", icon: FlaskConical },
+    { id: "review", label: "REVIEW", description: "audit code", icon: ShieldCheck },
+    { id: "refactor", label: "REFINE", description: "improve design", icon: WandSparkles }
   ]
 
   return (
-    <div className="flex items-center gap-1 rounded-lg border border-neutral-800 bg-neutral-900 p-1">
-      {actions.map(action => {
-        const Icon = action.icon
-        const active = running === action.id
-
-        return (
-          <button
-            key={action.id}
-            onClick={() => void run(action.id)}
-            disabled={running !== null}
-            title={`${action.label} agent`}
-            className={`flex items-center gap-1.5 rounded-md px-2.5 py-2 text-xs transition ${
-              active
-                ? "bg-white text-black"
-                : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
-            } disabled:cursor-not-allowed disabled:opacity-50`}
-          >
-            {active ? <CheckCircle2 size={13} /> : <Icon size={13} />}
-            {active ? "Running" : action.label}
-          </button>
-        )
-      })}
+    <div className="agent-command-center" data-running={running ? "true" : "false"}>
+      <div className="agent-command-header">
+        <div className="agent-command-title"><span className="agent-pulse" /> AGENT CONTROL</div>
+        <span className="agent-command-state">{running ? `${running.toUpperCase()} ACTIVE` : "STANDBY"}</span>
+      </div>
+      <div className="agent-command-actions">
+        {actions.map((action, index) => {
+          const Icon = action.icon
+          const active = running === action.id
+          return (
+            <button
+              key={action.id}
+              onClick={() => void run(action.id)}
+              disabled={running !== null}
+              className={`agent-command-action ${active ? "is-active" : ""}`}
+              title={`${action.label} agent`}
+            >
+              <span className="agent-command-index">0{index + 1}</span>
+              <span className="agent-command-icon">{active ? <CheckCircle2 size={14} /> : <Icon size={14} />}</span>
+              <span className="agent-command-copy"><strong>{active ? "RUNNING" : action.label}</strong><small>{active ? "agent executing" : action.description}</small></span>
+            </button>
+          )
+        })}
+      </div>
+      <button
+        onClick={() => void run("auto")}
+        disabled={running !== null}
+        className="agent-autonomous-button"
+      >
+        <span className="agent-auto-icon"><BrainCircuit size={17} /></span>
+        <span><strong>{running === "auto" ? "AUTONOMOUS LOOP ACTIVE" : "RUN AUTONOMOUS LOOP"}</strong><small>plan → code → execute → debug → test</small></span>
+        <Zap size={15} />
+      </button>
     </div>
   )
 }
