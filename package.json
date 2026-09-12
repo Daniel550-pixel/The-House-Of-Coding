@@ -6,12 +6,13 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm --prefix apps/web run dev",
+    "dev": "npm run dev:ps1",
     "dev:ps1": "powershell -ExecutionPolicy Bypass -File scripts/reactivate-dev.ps1",
     "build": "npm --prefix apps/web run build",
     "start": "npm --prefix apps/web run start",
     "lint": "npm --prefix apps/web run lint",
     "web": "npm --prefix apps/web run dev",
+    "api": "npm --prefix apps/api run dev",
     "build:web": "npm --prefix apps/web run build",
     "build:api": "npm --prefix apps/api run build"
   }
