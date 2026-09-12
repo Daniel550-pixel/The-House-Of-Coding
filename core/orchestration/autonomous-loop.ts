@@ -11,10 +11,17 @@ export type AutonomousLoopRequest = {
   maxIterations?: number
 }
 
+export type AutonomousAgent = "coding" | "runtime" | "debugger" | "tester" | "orchestrator"
+export type AutonomousLoopStage = "code" | "execute" | "debug" | "test" | "complete" | "failed"
+
 export type AutonomousLoopEvent = {
   iteration: number
-  stage: "code" | "execute" | "debug" | "test" | "complete" | "failed"
+  stage: AutonomousLoopStage
+  agent: AutonomousAgent
+  action: string
   message: string
+  nextAgent?: AutonomousAgent
+  durationMs?: number
 }
 
 export class AutonomousCodingLoop {
@@ -37,58 +44,75 @@ export class AutonomousCodingLoop {
       events.push(event)
       onEvent?.(event)
     }
+    const timed = async <T>(event: Omit<AutonomousLoopEvent, "durationMs">, operation: () => Promise<T>) => {
+      const started = Date.now()
+      emit(event)
+      const result = await operation()
+      return { result, durationMs: Date.now() - started }
+    }
 
     for (let iteration = 1; iteration <= maxIterations; iteration += 1) {
-      emit({
+      const coding = await timed({
         iteration,
         stage: "code",
+        agent: "coding",
+        action: "analyze-and-apply",
+        nextAgent: "runtime",
         message: "Coding Agent analyzing workspace and applying changes."
-      })
-
-      const codeResult = await this.coder.execute({
+      }, () => this.coder.execute({
         instruction: request.instruction,
         language: request.language,
         apply: true
-      })
+      }))
+      events[events.length - 1].durationMs = coding.durationMs
 
-      if (codeResult.parsed === false) {
+      if (coding.result.parsed === false) {
         emit({
           iteration,
           stage: "failed",
+          agent: "orchestrator",
+          action: "abort",
           message: "Coding Agent returned an unstructured response; no autonomous execution was attempted."
         })
-        return { success: false, iteration, events, code: codeResult }
+        return { success: false, iteration, events, code: coding.result }
       }
 
-      emit({
+      const execution = await timed({
         iteration,
         stage: "execute",
+        agent: "runtime",
+        action: "execute-target",
+        nextAgent: "tester",
         message: `Executing ${request.filePath}.`
+      }, async () => {
+        const absolute = this.workspace.resolveSafe(request.filePath)
+        return this.execution.execute({
+          language: request.language,
+          filePath: absolute,
+          workingDirectory: this.workspace.root
+        })
       })
+      events[events.length - 1].durationMs = execution.durationMs
 
-      const absolute = this.workspace.resolveSafe(request.filePath)
-      const executionResult = await this.execution.execute({
-        language: request.language,
-        filePath: absolute,
-        workingDirectory: this.workspace.root
-      })
-
-      if (executionResult.success) {
-        emit({
+      if (execution.result.success) {
+        const testing = await timed({
           iteration,
           stage: "test",
+          agent: "tester",
+          action: "analyze-tests",
+          nextAgent: "orchestrator",
           message: "Execution succeeded; requesting test analysis."
+        }, async () => {
+          const code = await this.workspace.readFile(request.filePath)
+          return this.tester.analyze({ code, language: request.language })
         })
-
-        const code = await this.workspace.readFile(request.filePath)
-        const testResult = await this.tester.analyze({
-          code,
-          language: request.language
-        })
+        events[events.length - 1].durationMs = testing.durationMs
 
         emit({
           iteration,
           stage: "complete",
+          agent: "orchestrator",
+          action: "complete-session",
           message: "Autonomous coding loop completed successfully."
         })
 
@@ -96,32 +120,35 @@ export class AutonomousCodingLoop {
           success: true,
           iteration,
           events,
-          code: codeResult,
-          execution: executionResult,
-          tests: testResult
+          code: coding.result,
+          execution: execution.result,
+          tests: testing.result
         }
       }
 
-      emit({
+      const debugging = await timed({
         iteration,
         stage: "debug",
+        agent: "debugger",
+        action: "diagnose-failure",
+        nextAgent: iteration === maxIterations ? "orchestrator" : "coding",
         message: "Execution failed; Debugger Agent analyzing the failure."
+      }, async () => {
+        const code = await this.workspace.readFile(request.filePath).catch(() => undefined)
+        return this.debuggerAgent.diagnose({
+          error: `${execution.result.stderr}\nExit code: ${execution.result.exitCode}`,
+          code,
+          language: request.language
+        })
       })
-
-      const code = await this.workspace
-        .readFile(request.filePath)
-        .catch(() => undefined)
-
-      const debugResult = await this.debuggerAgent.diagnose({
-        error: `${executionResult.stderr}\nExit code: ${executionResult.exitCode}`,
-        code,
-        language: request.language
-      })
+      events[events.length - 1].durationMs = debugging.durationMs
 
       if (iteration === maxIterations) {
         emit({
           iteration,
           stage: "failed",
+          agent: "orchestrator",
+          action: "max-iterations",
           message: "Maximum autonomous iterations reached."
         })
 
@@ -129,15 +156,15 @@ export class AutonomousCodingLoop {
           success: false,
           iteration,
           events,
-          code: codeResult,
-          execution: executionResult,
-          debug: debugResult
+          code: coding.result,
+          execution: execution.result,
+          debug: debugging.result
         }
       }
 
       request = {
         ...request,
-        instruction: `${request.instruction}\n\nPrevious execution failed. Use this debugger diagnosis to correct the implementation:\n${debugResult.content}`
+        instruction: `${request.instruction}\n\nPrevious execution failed. Use this debugger diagnosis to correct the implementation:\n${debugging.result.content}`
       }
     }
 
