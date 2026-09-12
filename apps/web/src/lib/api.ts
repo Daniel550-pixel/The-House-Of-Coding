@@ -241,6 +241,11 @@ export function createAgentSession(input: AgentSession["request"]) {
   })
 }
 
+export function getAgentSessions(limit = 25) {
+  const query = new URLSearchParams({ limit: String(limit) })
+  return request<{ success: boolean; sessions: AgentSession[] }>(`/sessions?${query.toString()}`)
+}
+
 export function getAgentSession(id: string) {
   return request<{ success: boolean; session: AgentSession }>(`/sessions/${id}`)
 }
