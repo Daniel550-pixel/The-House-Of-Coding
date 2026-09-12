@@ -1,6 +1,6 @@
 {
   "name": "The House Of Coding",
-  "description": "AI-native coding environment with workspace, agents, execution, testing, debugging, and review.",
+  "description": "An AI-native coding workspace for projects, agents, execution, testing, debugging, review, and autonomous development.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
