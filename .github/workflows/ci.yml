@@ -18,20 +18,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            apps/api/package-lock.json
-            apps/web/package-lock.json
 
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Install API dependencies
-        run: npm ci --prefix apps/api
-
-      - name: Install web dependencies
-        run: npm ci --prefix apps/web
+      - name: Install workspace dependencies
+        run: npm install
 
       - name: Build API
         run: npm run build:api
