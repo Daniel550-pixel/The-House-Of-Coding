@@ -40,6 +40,7 @@ export function AutonomousControls({
   const [phase, setPhase] = useState(0)
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [elapsed, setElapsed] = useState(0)
+  const [clock, setClock] = useState("00:00:00")
   const [events, setEvents] = useState<string[]>([])
   const [mode, setMode] = useState<HudMode>("TARGETING")
   const [soundEnabled, setSoundEnabled] = useState(true)
@@ -53,6 +54,13 @@ export function AutonomousControls({
     const timer = window.setInterval(() => setElapsed(Date.now() - startedAt), 250)
     return () => window.clearInterval(timer)
   }, [startedAt])
+
+  useEffect(() => {
+    const updateClock = () => setClock(new Date().toISOString().slice(11, 19))
+    updateClock()
+    const timer = window.setInterval(updateClock, 1000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     const timer = window.setInterval(() => setTelemetryTick(value => value + 1), 2000)
@@ -230,7 +238,7 @@ export function AutonomousControls({
               <div className="agent-subhead"><span>LIVE TERMINAL LOG</span><Terminal size={10}/></div>
               <div className="agent-terminal-log">
                 {(events.length ? events : ["System initializing...", "Core telemetry online.", "Subsystem check complete."]).map((event, index) => (
-                  <div key={`${event}-${index}`}>[{new Date().toISOString().slice(11, 19)}] {event}</div>
+                  <div key={`${event}-${index}`}>[{clock}] {event}</div>
                 ))}
               </div>
             </div>
