@@ -91,28 +91,61 @@ export function AutonomousControls({
   ]
 
   return (
-    <div className="flex items-stretch gap-2 border border-[#11151a] bg-[#11151a] p-1 shadow-[4px_4px_0_rgba(240,90,40,.8)]" data-running={running ? "true" : "false"}>
-      <div className="flex min-w-[112px] flex-col justify-center border-r border-white/15 px-3 py-1 text-white">
-        <div className="flex items-center gap-2 text-[9px] font-bold tracking-[.2em]"><span className={`h-2 w-2 rounded-full ${running ? "animate-pulse bg-[#f05a28]" : "bg-[#36b37e]"}`} />AGENT CONTROL</div>
-        <div className="mt-1 text-[8px] uppercase tracking-widest text-white/45">{running ? `${running} active` : "system standby"}</div>
+    <div className="flex flex-wrap items-stretch gap-2 border border-cyan-500/40 bg-[#03101a]/90 p-1.5 box-glow rounded-none" data-running={running ? "true" : "false"}>
+      <div className="flex min-w-[110px] flex-col justify-center border-r border-cyan-500/30 px-3 py-1 text-cyan-300">
+        <div className="flex items-center gap-2 text-[9px] font-orbitron font-bold tracking-[.15em] text-glow">
+          <span className={`h-2 w-2 rounded-full ${running ? "animate-ping bg-rose-500" : "bg-cyan-400 animate-pulse"}`} />
+          AI_AGENTS
+        </div>
+        <div className="mt-0.5 text-[8px] tracking-widest text-cyan-400/60 font-mono">
+          {running ? `${running.toUpperCase()} ACTIVE` : "SYSTEM STANDBY"}
+        </div>
       </div>
-      <div className="flex items-stretch gap-1">
+      <div className="flex flex-wrap items-stretch gap-1">
         {actions.map((action, index) => {
           const Icon = action.icon
           const active = running === action.id
           return (
-            <button key={action.id} onClick={() => void run(action.id)} disabled={running !== null} title={`${action.label} agent`} className={`group flex min-w-[78px] flex-col items-start justify-center border px-2 py-1 text-left transition ${active ? "border-[#f05a28] bg-[#f05a28] text-white" : "border-white/10 bg-white/[.04] text-white/70 hover:border-white/30 hover:bg-white/[.09]"} disabled:cursor-not-allowed disabled:opacity-50`}>
-              <span className="flex w-full items-center justify-between text-[8px] font-mono text-white/35"><span>0{index + 1}</span>{active ? <CheckCircle2 size={12} /> : <Icon size={12} />}</span>
-              <strong className="mt-1 text-[9px] tracking-widest">{active ? "RUNNING" : action.label}</strong>
-              <small className="mt-0.5 text-[8px] text-white/40">{active ? "executing" : action.description}</small>
+            <button
+              key={action.id}
+              onClick={() => void run(action.id)}
+              disabled={running !== null}
+              title={`${action.label} agent`}
+              className={`group flex min-w-[72px] flex-col items-start justify-center border px-2.5 py-1 text-left transition font-orbitron ${
+                active
+                  ? "border-rose-500 bg-rose-950/80 text-rose-300 box-glow-red"
+                  : "border-cyan-500/30 bg-cyan-950/40 text-cyan-300 hover:border-cyan-400 hover:bg-cyan-500/20"
+              } disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              <span className="flex w-full items-center justify-between text-[8px] font-mono text-cyan-400/50">
+                <span>0{index + 1}</span>
+                {active ? <CheckCircle2 size={11} className="text-rose-400" /> : <Icon size={11} />}
+              </span>
+              <strong className="mt-1 text-[9px] tracking-wider font-bold">{active ? "BUSY" : action.label}</strong>
+              <small className="mt-0.5 text-[7px] text-cyan-400/60 font-mono">{active ? "executing" : action.description}</small>
             </button>
           )
         })}
       </div>
-      <button onClick={() => void run("auto")} disabled={running !== null} className="flex min-w-[168px] items-center gap-2 border border-[#1546d8] bg-[#1546d8] px-3 py-2 text-left text-white transition hover:bg-[#0d2d91] disabled:cursor-not-allowed disabled:opacity-50">
-        <span className="flex h-8 w-8 items-center justify-center border border-white/20 bg-white/10"><BrainCircuit size={17} /></span>
-        <span className="min-w-0 flex-1"><strong className="block text-[9px] tracking-widest">{running === "auto" ? "AUTONOMOUS ACTIVE" : "AUTONOMOUS LOOP"}</strong><small className="mt-1 block text-[8px] text-white/60">plan → code → execute → debug → test</small></span>
-        <Zap size={14} />
+      <button
+        onClick={() => void run("auto")}
+        disabled={running !== null}
+        className={`flex min-w-[170px] items-center gap-2 border px-3 py-1.5 text-left font-orbitron transition ${
+          running === "auto"
+            ? "border-rose-500 bg-rose-950/80 text-rose-200 box-glow-red"
+            : "border-cyan-400 bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 box-glow"
+        } disabled:cursor-not-allowed disabled:opacity-50`}
+      >
+        <span className="flex h-7 w-7 items-center justify-center border border-cyan-400/50 bg-cyan-950/80 text-cyan-300">
+          <BrainCircuit size={15} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <strong className="block text-[9px] tracking-widest text-glow">
+            {running === "auto" ? "AUTONOMOUS LOOP" : "EXECUTE LOOP"}
+          </strong>
+          <small className="block text-[7px] text-cyan-400/70 font-mono">plan → code → test → verify</small>
+        </span>
+        <Zap size={13} className="text-cyan-300" />
       </button>
     </div>
   )

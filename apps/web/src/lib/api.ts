@@ -82,7 +82,25 @@ export function getProjectFile(projectId: string, path: string) {
   return request<{ success: boolean; path: string; content: string }>(`/projects/${projectId}/file?${query.toString()}`)
 }
 
-export function saveProjectFile(projectId: string, path: string, content: string) {
+export function saveProjectFile(
+  projectIdOrInput: string | { projectId?: string; path: string; content: string },
+  maybePath?: string,
+  maybeContent?: string
+) {
+  let projectId = "house"
+  let path = ""
+  let content = ""
+
+  if (typeof projectIdOrInput === "object") {
+    projectId = projectIdOrInput.projectId ?? "house"
+    path = projectIdOrInput.path
+    content = projectIdOrInput.content
+  } else {
+    projectId = projectIdOrInput
+    path = maybePath ?? ""
+    content = maybeContent ?? ""
+  }
+
   return request<{ success: boolean; path: string; bytes: number }>(`/projects/${projectId}/file`, {
     method: "POST",
     body: JSON.stringify({ path, content })

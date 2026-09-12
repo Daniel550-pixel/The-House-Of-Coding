@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "The House Of Coding — AI Coding Workspace",
-  description: "An AI-native coding workspace for projects, agents, execution, testing, debugging, review, and autonomous development.",
+  title: "The House Of Coding — Futuristic HUD Interface",
+  description: "Cybernetic HUD control interface and AI-native operating workspace with autonomous agents, telemetry, and radar diagnostics.",
 };
 
 export default function RootLayout({
@@ -25,7 +25,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;800;900&family=Share+Tech+Mono&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="min-h-full flex flex-col bg-[#030810] text-[#00f3ff] antialiased selection:bg-[#00f3ff]/30 selection:text-white">
+        {children}
+      </body>
     </html>
   );
 }

@@ -1,6 +1,6 @@
 {
   "name": "The House Of Coding",
-  "description": "An AI-native coding workspace for projects, agents, execution, testing, debugging, review, and autonomous development.",
+  "description": "Cybernetic HUD control interface and AI-native operating workspace with autonomous agents, telemetry, and radar diagnostics.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
