@@ -6,7 +6,7 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm --prefix apps/web run dev",
+    "dev": "powershell -ExecutionPolicy Bypass -File scripts/reactivate-dev.ps1",
     "build": "npm --prefix apps/web run build",
     "start": "npm --prefix apps/web run start",
     "lint": "npm --prefix apps/web run lint",
