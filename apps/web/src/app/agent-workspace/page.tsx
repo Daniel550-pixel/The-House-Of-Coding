@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Bot, Bug, CheckCircle2, Code2, FileCode2, FlaskConical, FolderOpen, Play, RefreshCw, Send, ShieldCheck, Sparkles, Terminal, X, Zap } from "lucide-react"
 import { AutonomousControls, type AgentAction } from "../../components/autonomous-controls"
-import { createAgentSession, executeFile, getAgentSessions, getLanguages, getProjectFile, getProjectFiles, saveProjectFile, subscribeAgentSession, type AgentEvent, type AgentSession, type LanguageRuntime, type WorkspaceFile } from "../../lib/api"
+import { analyzeTests, createAgentSession, debugCode, executeFile, generateCode, getAgentSessions, getLanguages, getProjectFile, getProjectFiles, reviewCode, saveProjectFile, subscribeAgentSession, type AgentEvent, type AgentSession, type LanguageRuntime, type WorkspaceFile } from "../../lib/api"
 
 type Tab = { path: string; content: string; savedContent: string }
 type Proposal = { changes: Array<{ path: string; content: string }>; action: AgentAction; summary: string }
@@ -53,6 +53,7 @@ export default function AgentWorkspacePage() {
   const [sessionHistory, setSessionHistory] = useState<AgentSession[]>([])
   const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([])
   const [activity, setActivity] = useState<string[]>(["Runtime initialized", "Human control layer online", "Workspace awaiting mission"])
+  const [lastExecutionError, setLastExecutionError] = useState("")
 
   const active = tabs.find(tab => tab.path === selectedFile)
   const code = active?.content ?? ""
@@ -130,8 +131,9 @@ export default function AgentWorkspacePage() {
     try {
       await save(); const result = await executeFile({ language, filePath: selectedFile })
       setOutput(`EXIT ${result.result.exitCode}\nDURATION ${result.result.durationMs} ms\n\nSTDOUT\n${result.result.stdout || "(none)"}\n\nSTDERR\n${result.result.stderr || "(none)"}`)
+      setLastExecutionError(result.result.stderr || (result.result.success ? "" : `Execution exited with code ${result.result.exitCode}`))
       setStatus(result.result.success ? "EXECUTION PASSED" : "EXECUTION FAILED"); log(result.result.success ? "Execution passed" : "Execution returned a failure")
-    } catch (error) { setOutput(error instanceof Error ? error.message : "Execution failed"); setStatus("EXECUTION FAILED") }
+    } catch (error) { const message = error instanceof Error ? error.message : "Execution failed"; setOutput(message); setLastExecutionError(message); setStatus("EXECUTION FAILED") }
     finally { setRunning(false) }
   }
   async function dispatchMission() {
@@ -149,6 +151,69 @@ export default function AgentWorkspacePage() {
       window.setTimeout(() => unsubscribe(), 10 * 60 * 1000)
     } catch (error) { setRunning(false); setStatus(error instanceof Error ? error.message : "Mission dispatch failed") }
   }
+
+  async function runFleetAction(action: FleetName) {
+    if (!selectedFile) { setStatus("SELECT A TARGET"); return }
+    if (action === "AUTONOMOUS") {
+      await dispatchMission()
+      return
+    }
+
+    setRunning(true)
+    setStatus(`${action} ACTIVE`)
+    log(`${action} agent engaged · ${nameOf(selectedFile)}`)
+
+    try {
+      if (action === "BUILD" || action === "REFINE") {
+        const instruction = prompt.trim() || (action === "BUILD"
+          ? `Build the highest-value safe improvement for ${selectedFile}. Preserve the existing architecture and UI.`
+          : `Refine ${selectedFile} for correctness, maintainability, and quality without changing its intended behavior.`)
+        const result = await generateCode({ instruction, language, projectId: PROJECT_ID, apply: false })
+        const changes = result.result.changes ?? []
+        const summary = result.result.response || `${action} generated ${changes.length} proposed file change(s).`
+        setOutput(summary)
+        if (changes.length) {
+          setProposal({ changes, action: "code", summary })
+          setStatus(`${action} PROPOSAL`)
+        } else {
+          setStatus(`${action} COMPLETE`)
+        }
+        return
+      }
+
+      if (action === "DEBUG") {
+        const error = lastExecutionError || output || "Inspect the selected file for likely runtime or implementation errors."
+        const result = await debugCode({ error, code, language })
+        setOutput(result.result.content)
+        setStatus("DEBUG COMPLETE")
+        log("Debugger analysis returned")
+        return
+      }
+
+      if (action === "TEST") {
+        const result = await analyzeTests({ path: selectedFile, language })
+        setOutput(result.result.content)
+        setStatus("TEST ANALYSIS COMPLETE")
+        log("Test agent analysis returned")
+        return
+      }
+
+      if (action === "REVIEW") {
+        const result = await reviewCode({ path: selectedFile, code, language })
+        setOutput(result.result.content)
+        setStatus("REVIEW COMPLETE")
+        log("Reviewer analysis returned")
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : `${action} failed`
+      setOutput(message)
+      setStatus(`${action} FAILED`)
+      log(`${action} agent failed`)
+    } finally {
+      setRunning(false)
+    }
+  }
+
   async function applyProposal() {
     if (!proposal) return
     setStatus("APPLYING")
@@ -214,7 +279,7 @@ export default function AgentWorkspacePage() {
         <div className="hud-dock-output"><div className="hud-dock-title"><Terminal size={12}/> OUTPUT <span>{status}</span></div><pre>{output || agentEvents.slice(-5).map(e => `[${e.stage.toUpperCase()}] ${e.message}`).join("\n") || "SYSTEM READY // AWAITING DIRECTIVE"}</pre></div>
       </section>
 
-      <div className="hud-fleet-bar">{FLEET.map(name => <AgentChip key={name} icon={fleetIcon(name)} name={name} active={name === fleetActive}/>) }<span className="hud-fleet-spacer"/><span className="hud-human">{sessionHistory.length} SESSION{sessionHistory.length === 1 ? "" : "S"} // HUMAN CONTROL // APPROVAL REQUIRED</span></div>
+      <div className="hud-fleet-bar">{FLEET.map(name => <button key={name} type="button" className={`hud-agent-chip ${name === fleetActive ? "active" : ""}`} onClick={() => void runFleetAction(name)} disabled={running || !selectedFile}>{fleetIcon(name)}<span>{name}</span></button>)}<span className="hud-fleet-spacer"/><span className="hud-human">{sessionHistory.length} SESSION{sessionHistory.length === 1 ? "" : "S"} // HUMAN CONTROL // APPROVAL REQUIRED</span></div>
       <div className="hud-session-history" aria-label="Agent session history"><span>HISTORY</span>{sessionHistory.slice(0, 5).map(item => <button key={item.id} title={item.request.instruction} onClick={() => { setSession(item); setAgentEvents(item.events.slice(-20)); setStatus(item.status.toUpperCase()); log(`Session selected · ${item.id.slice(0, 12)}`) }} className={item.id === session?.id ? "active" : ""}><i className={item.status}/>{item.id.slice(-6)} · {item.status.toUpperCase()}</button>)}</div>
       <AutonomousControls language={language} filePath={selectedFile} code={code} instruction={prompt} onProposal={value => { setProposal(value); setStatus("AWAITING APPROVAL"); log(`Proposal generated · ${value.changes.length} file(s)`) }} onOutput={value => { setOutput(value); setStatus("RESULT AVAILABLE"); log("Agent returned result") }} onFilesChanged={() => void refresh()} />
 
