@@ -35,7 +35,8 @@ export const GeminiProvider: LLMProvider = {
         ...(request.system ? { system_instruction: request.system } : {}),
         ...(typeof request.temperature === "number"
           ? { generation_config: { temperature: request.temperature } }
-          : {})
+          : {}),
+        store: false
       })
     })
 
