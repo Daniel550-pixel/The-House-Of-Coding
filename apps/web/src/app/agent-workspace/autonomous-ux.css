@@ -1,54 +1,136 @@
-/* In-app agent observability: keep the existing HUD layout and surface the runtime monitor. */
+/* In-app HUD reference layer. Preserves the existing Agent Workspace layout while upgrading the runtime surface. */
 .hud-console-shell>.agent-command-center{
   display:block;
   position:absolute;
-  left:18px;
-  right:18px;
-  bottom:84px;
+  inset:10px 18px 84px;
   z-index:24;
-  max-height:min(245px,32dvh);
   overflow:auto;
-  padding:10px 12px;
-  border:1px solid rgba(0,243,255,.22);
-  background:rgba(1,8,12,.96);
-  box-shadow:0 -14px 40px rgba(0,0,0,.42),0 0 26px rgba(0,243,255,.08);
-  backdrop-filter:blur(8px);
+  padding:12px;
+  color:#b9e9ed;
+  background:rgba(1,7,11,.98);
+  border:1px solid rgba(0,243,255,.28);
+  clip-path:polygon(0 14px,14px 0,calc(100% - 14px) 0,100% 14px,100% calc(100% - 14px),calc(100% - 14px) 100%,14px 100%,0 calc(100% - 14px));
+  box-shadow:0 0 28px rgba(0,243,255,.09),inset 0 0 35px rgba(0,243,255,.03);
+  backdrop-filter:blur(10px);
 }
 
-/* Keep the stable bottom fleet bar as the single execution control surface. */
-.hud-console-shell>.agent-command-center .agent-fleet,
-.hud-console-shell>.agent-command-center .agent-actions{
-  display:none;
-}
+.agent-hud-shell{position:relative;min-height:100%;overflow:hidden;background:radial-gradient(circle at center,rgba(0,60,90,.2),transparent 65%),linear-gradient(180deg,rgba(3,16,26,.9),rgba(1,6,10,.98));}
+.agent-hud-grid{position:absolute;inset:0;pointer-events:none;opacity:.1;background-image:linear-gradient(to right,#00f3ff 1px,transparent 1px),linear-gradient(to bottom,#00f3ff 1px,transparent 1px);background-size:36px 36px;}
+.agent-hud-shell:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(rgba(0,0,0,0) 50%,rgba(0,0,0,.18) 50%);background-size:100% 4px;}
 
-.hud-console-shell>.agent-command-center .agent-command-header{
-  margin-bottom:8px;
-}
+.hud-console-shell>.agent-command-center .agent-command-header{position:relative;z-index:2;display:grid;grid-template-columns:minmax(240px,1fr) auto auto;align-items:center;gap:14px;padding:8px 10px;margin:0 0 10px;border-bottom:1px solid rgba(0,243,255,.22);background:rgba(1,10,15,.82);}
+.hud-console-shell>.agent-command-center .agent-kicker{display:flex;align-items:center;gap:5px;color:#4b9ca5;letter-spacing:.14em;font-size:7px;}
+.hud-console-shell>.agent-command-center .agent-identity strong{display:block;margin-top:2px;color:#8bfbff;font:700 12px 'Orbitron';letter-spacing:.14em;}
+.hud-console-shell>.agent-command-center .agent-orb{display:grid;place-items:center;width:30px;height:30px;border:1px solid #087b86;color:#00f3ff;background:#031217;box-shadow:0 0 12px rgba(0,243,255,.18);}
+.hud-console-shell>.agent-command-center .agent-runtime-status{display:flex;align-items:center;gap:7px;color:#66cbd1;font-size:7px;letter-spacing:.1em;white-space:nowrap;}
+.hud-console-shell>.agent-command-center .agent-sound-toggle{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:26px;padding:5px 8px;color:#69dfe5;background:#031015;border:1px solid rgba(0,243,255,.24);font:600 7px 'Orbitron';letter-spacing:.08em;}
 
-.hud-console-shell>.agent-command-center .agent-mission-grid{
-  grid-template-columns:minmax(240px,1fr) minmax(340px,1.35fr);
-  gap:10px;
-}
+.agent-hud-body{position:relative;z-index:2;display:grid;grid-template-columns:minmax(215px,.9fr) minmax(420px,1.5fr) minmax(215px,.9fr);gap:8px;min-height:360px;}
+.agent-hud-panel{padding:9px;border:1px solid rgba(0,243,255,.2);background:rgba(2,13,19,.78);overflow:hidden;}
+.agent-hud-panel-title,.agent-subhead{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#4c9199;font-size:7px;letter-spacing:.12em;}
+.agent-hud-panel-title{padding-bottom:7px;border-bottom:1px solid rgba(0,243,255,.18);}
+.agent-hud-panel-title span{display:flex;align-items:center;gap:5px;color:#7beef3;}
+.agent-hud-panel-title b{padding:2px 5px;color:#65cfd5;border:1px solid rgba(0,243,255,.2);font-size:6px;}
 
-.hud-console-shell>.agent-command-center .agent-activity{
-  margin-top:8px;
-}
+.agent-status-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:8px 0;}
+.agent-status-grid>div{padding:6px;border:1px solid rgba(0,243,255,.14);background:rgba(0,243,255,.025);}
+.agent-status-grid span,.agent-coordinate-card>span,.agent-readout-list span,.agent-diagnostics-card>div span{display:block;color:#4f8c93;font-size:6px;letter-spacing:.1em;}
+.agent-status-grid strong{display:flex;align-items:center;gap:5px;margin-top:4px;color:#70dde3;font-size:8px;}
+.agent-status-grid i.live,.agent-status-grid i{width:4px;height:4px;border-radius:50%;background:#00f3ff;box-shadow:0 0 7px #00f3ff;}
 
-.hud-console-shell>.agent-command-center .agent-activity-stream{
-  max-height:80px;
-  overflow:auto;
-}
+.agent-hud-bar{margin:6px 0;}
+.agent-hud-bar>div:first-child{display:flex;justify-content:space-between;color:#558d94;font-size:6px;letter-spacing:.1em;}
+.agent-hud-bar b{color:#72e2e8;font-size:7px;}
+.agent-hud-bar>div:last-child{height:7px;margin-top:3px;padding:1px;border:1px solid rgba(0,243,255,.2);background:#021018;}
+.agent-hud-bar i{display:block;height:100%;background:#00f3ff;box-shadow:0 0 7px rgba(0,243,255,.45);}
 
+.agent-terminal-block{margin-top:8px;}
+.agent-terminal-log{height:78px;margin-top:4px;padding:6px;overflow:auto;border:1px solid rgba(0,243,255,.16);background:#000609;color:#47868e;font-size:6px;line-height:1.4;}
+.agent-terminal-log div:last-child{color:#8bfbff;}
+.agent-scan-controls{margin-top:8px;padding-top:7px;border-top:1px solid rgba(0,243,255,.16);}
+.agent-hud-section-label{margin-bottom:6px;color:#68dce2;font:600 7px 'Orbitron';letter-spacing:.1em;}
+.agent-scan-controls label{display:grid;grid-template-columns:82px 1fr;align-items:center;gap:7px;margin:5px 0;color:#528d95;font-size:6px;letter-spacing:.08em;}
+.agent-scan-controls input{width:100%;accent-color:#00f3ff;}
+
+.agent-hud-center{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;padding:7px 10px;border:1px solid rgba(0,243,255,.2);background:radial-gradient(circle at center,rgba(0,243,255,.06),transparent 58%);overflow:hidden;}
+.agent-mode-row{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;margin-bottom:4px;}
+.agent-mode-row button{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;color:#62cbd2;background:#031015;border:1px solid rgba(0,243,255,.18);font:600 6px 'Orbitron';letter-spacing:.08em;}
+.agent-mode-row button.active{color:#020608;background:#00f3ff;border-color:#00f3ff;box-shadow:0 0 14px rgba(0,243,255,.28);}
+.agent-radar-stage{width:min(100%,560px);transform-origin:center;transition:transform .25s ease;}
+.agent-radar{display:block;width:100%;height:auto;color:#00f3ff;filter:drop-shadow(0 0 6px rgba(0,243,255,.45));}
+.radar-spin-cw{transform-box:fill-box;transform-origin:center;animation:radarCw 20s linear infinite;}
+.radar-spin-ccw{transform-box:fill-box;transform-origin:center;animation:radarCcw 15s linear infinite;}
+.radar-pulse{transform-box:fill-box;transform-origin:center;animation:radarPulse 3s ease-in-out infinite;}
+.agent-radar-text,.agent-radar-label{fill:#55a5ad;stroke:none;font:8px 'Share Tech Mono';letter-spacing:1px;}
+.radar-targets g{transition:opacity .2s ease;}
+.radar-targets g.locked{color:#ff4d73;filter:drop-shadow(0 0 7px rgba(255,77,115,.75));}
+.agent-radar-label{fill:#397f87;font-size:7px;letter-spacing:2px;}
+.agent-radar-stats{width:100%;display:flex;justify-content:space-between;gap:8px;padding:5px 7px;border:1px solid rgba(0,243,255,.18);background:rgba(0,18,25,.72);color:#4c9199;font-size:6px;letter-spacing:.1em;}
+.agent-radar-stats b{color:#7beef3;}
+.agent-radar-stats .nominal{color:#63d18b;}
+.agent-radar-stats .locked-text{color:#ff6688;}
+.agent-hud-command-row{display:flex;gap:5px;margin-top:6px;}
+.agent-hud-command-row button,.agent-hud-actions button{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:5px 8px;color:#69dfe5;background:#031015;border:1px solid rgba(0,243,255,.2);font:600 6px 'Orbitron';letter-spacing:.08em;}
+.agent-hud-command-row button:hover,.agent-hud-actions button:hover,.agent-sound-toggle:hover{border-color:#087b86;background:#08252b;}
+.agent-hud-command-row button:disabled{opacity:.35;cursor:not-allowed;}
+
+.agent-coordinate-card{margin-top:8px;padding:7px;border:1px solid rgba(0,243,255,.15);background:rgba(0,0,0,.35);}
+.agent-coordinate-card>div{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:5px;}
+.agent-coordinate-card strong{display:block;padding:6px 2px;text-align:center;color:#70dde3;background:#03141a;border:1px solid rgba(0,243,255,.12);font-size:8px;}
+.agent-wave{margin-top:8px;}
+.agent-wave>div:first-child{display:flex;justify-content:space-between;color:#4e8f97;font-size:6px;letter-spacing:.08em;}
+.agent-wave b{color:#6fdce2;}
+.agent-wave-line{display:flex;align-items:end;gap:3px;height:38px;margin-top:4px;padding:5px;border:1px solid rgba(0,243,255,.15);background:#000609;}
+.agent-wave-line span{display:block;flex:1;background:#00f3ff;opacity:.7;box-shadow:0 0 5px rgba(0,243,255,.3);}
+.agent-wave-line span:nth-child(1){height:25%}.agent-wave-line span:nth-child(2){height:55%}.agent-wave-line span:nth-child(3){height:80%}.agent-wave-line span:nth-child(4){height:45%}.agent-wave-line span:nth-child(5){height:92%}.agent-wave-line span:nth-child(6){height:63%}.agent-wave-line span:nth-child(7){height:35%}
+.agent-readout-list{margin-top:8px;}
+.agent-readout-list>div,.agent-diagnostics-card>div{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,243,255,.1);font-size:6px;}
+.agent-readout-list strong{color:#6ddce2;font-size:7px;}
+.agent-readout-list .nominal{color:#63d18b;}
+.agent-diagnostics-card{margin-top:8px;padding:7px;border:1px solid rgba(0,243,255,.14);}
+.agent-diagnostics-card>b{display:block;margin-bottom:4px;color:#6edee4;font:600 6px 'Orbitron';letter-spacing:.1em;}
+.agent-diagnostics-card>div strong{color:#6edce2;font-size:6px;}
+.agent-hud-actions{display:grid;gap:4px;margin-top:8px;}
+
+.agent-mission-strip{position:relative;z-index:2;display:grid;grid-template-columns:minmax(240px,1fr) minmax(320px,1.3fr);gap:10px;margin-top:8px;padding:7px;border:1px solid rgba(0,243,255,.18);background:rgba(0,12,17,.82);}
+.agent-mission-strip>div:first-child span{display:block;color:#4f8d94;font-size:6px;letter-spacing:.12em;}
+.agent-mission-strip strong{display:block;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#83eef3;font:600 8px 'Orbitron';}
+.agent-mission-strip small{display:block;margin-top:2px;color:#3f7780;font-size:6px;}
+.agent-pipeline{display:grid;grid-template-columns:repeat(5,1fr);align-items:center;gap:3px;}
+.agent-pipeline span{display:flex;align-items:center;gap:3px;color:#345f66;font-size:6px;letter-spacing:.06em;}
+.agent-pipeline i{display:grid;place-items:center;width:15px;height:15px;border:1px solid rgba(0,243,255,.15);font-style:normal;}
+.agent-pipeline span.done{color:#58aeb6}.agent-pipeline span.done i{color:#00f3ff;border-color:#087b86}.agent-pipeline span.active{color:#8bfbff}.agent-pipeline span.active i{color:#020608;background:#00f3ff;box-shadow:0 0 8px rgba(0,243,255,.3);}
+
+.hud-console-shell>.agent-command-center .agent-fleet{display:block;position:relative;z-index:2;margin-top:8px;padding:7px;border:1px solid rgba(0,243,255,.18);background:rgba(0,12,17,.72);}
+.agent-fleet-title{margin-bottom:5px;display:flex;align-items:center;gap:5px;color:#4d8e96;font-size:6px;letter-spacing:.12em;}
+.agent-fleet-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;}
+.agent-fleet-grid button{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:5px;align-items:center;min-width:0;padding:6px;color:#4d9198;background:#031015;border:1px solid rgba(0,243,255,.15);text-align:left;}
+.agent-fleet-grid button svg{grid-row:1 / span 2;color:#45a6ad;}
+.agent-fleet-grid strong{color:#6cdbe2;font:600 7px 'Orbitron';letter-spacing:.08em;}.agent-fleet-grid small{color:#376b72;font-size:6px;}
+.agent-fleet-grid button.active,.agent-fleet-grid button:hover{color:#8bfbff;border-color:#087b86;background:#06232a;box-shadow:inset 0 0 15px rgba(0,243,255,.05);}
+.agent-fleet-grid button.active strong{color:#8bfbff;}
+.agent-fleet-grid button.autonomous{border-color:rgba(0,243,255,.35);}
+
+.hud-console-shell>.agent-command-center .agent-activity{display:block;position:relative;z-index:2;margin-top:8px;padding:7px;border-top:1px solid rgba(0,243,255,.16);}
+.hud-console-shell>.agent-command-center .agent-activity-stream{max-height:70px;overflow:auto;margin-top:4px;padding:5px;background:#000609;border:1px solid rgba(0,243,255,.13);font-size:6px;color:#4f8991;}
+.hud-console-shell>.agent-command-center .agent-activity-stream>div{display:grid;grid-template-columns:18px 1fr;gap:4px;padding:2px 0;}.hud-console-shell>.agent-command-center .agent-activity-stream>div>span{color:#2f6067;}
+.agent-actions{display:flex;align-items:center;gap:4px;margin-top:5px;}.agent-secondary-action{display:inline-flex;align-items:center;gap:4px;padding:5px 7px;color:#4e8990;background:#031015;border:1px solid rgba(0,243,255,.16);font:600 6px 'Orbitron';}.agent-secondary-action:disabled{opacity:.35;}.agent-approval-state{margin-left:auto;color:#4e8990;font-size:6px;letter-spacing:.08em;}.agent-status-dot{display:inline-block;width:5px;height:5px;margin-right:4px;border-radius:50%;background:#3c727a;}.agent-status-dot.running{background:#00f3ff;box-shadow:0 0 7px #00f3ff;}.agent-status-dot.complete{background:#63d18b;}.agent-status-dot.waiting{background:#eaa443;}.agent-status-dot.idle{background:#3c727a;}
+
+@keyframes radarCw{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes radarCcw{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}
+@keyframes radarPulse{0%,100%{opacity:.25;transform:scale(1)}50%{opacity:.9;transform:scale(1.35)}}
+
+@media(max-width:1100px){
+  .hud-console-shell>.agent-command-center{inset:8px 10px 82px;}
+  .agent-hud-body{grid-template-columns:200px minmax(360px,1fr) 200px;}
+  .agent-fleet-grid{grid-template-columns:repeat(3,1fr);}
+  .hud-console-shell>.agent-command-center .agent-command-header{grid-template-columns:1fr auto;}.agent-sound-toggle{display:none;}
+}
 @media(max-width:820px){
-  .hud-console-shell>.agent-command-center{
-    left:10px;
-    right:10px;
-    bottom:82px;
-    max-height:220px;
-    padding:8px;
-  }
-
-  .hud-console-shell>.agent-command-center .agent-mission-grid{
-    grid-template-columns:1fr;
-  }
+  .hud-console-shell>.agent-command-center{inset:8px 10px 78px;padding:8px;}
+  .agent-hud-body{grid-template-columns:1fr;}.agent-hud-left,.agent-hud-right{display:none;}
+  .agent-hud-center{min-height:290px;}.agent-radar-stage{width:100%;}
+  .agent-mission-strip{grid-template-columns:1fr;}.agent-pipeline{margin-top:5px;}
+  .agent-fleet-grid{grid-template-columns:repeat(2,1fr);}
+  .agent-radar-stats{font-size:5px;}.agent-hud-command-row{flex-wrap:wrap;}
 }
