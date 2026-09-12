@@ -122,7 +122,32 @@ function lineStartIndex(value: string, line: number) {
   return value.length
 }
 
-function parseDiagnostics(value: string): Diagnostic[] {
+
+function diffLines(before: string, after: string) {
+  const oldLines = before.split("\n")
+  const newLines = after.split("\n")
+  const max = Math.max(oldLines.length, newLines.length)
+  const rows: Array<{ kind: "same" | "removed" | "added"; oldLine: number | null; newLine: number | null; text: string }> = []
+
+  for (let index = 0; index < max; index += 1) {
+    const oldLine = oldLines[index]
+    const newLine = newLines[index]
+
+    if (oldLine === newLine) {
+      rows.push({ kind: "same", oldLine: index + 1, newLine: index + 1, text: oldLine ?? "" })
+    } else {
+      if (oldLine !== undefined) {
+        rows.push({ kind: "removed", oldLine: index + 1, newLine: null, text: oldLine })
+      }
+      if (newLine !== undefined) {
+        rows.push({ kind: "added", oldLine: null, newLine: index + 1, text: newLine })
+      }
+    }
+  }
+
+  return rows
+}
+\nfunction parseDiagnostics(value: string): Diagnostic[] {
   const diagnostics: Diagnostic[] = []
   const seen = new Set<string>()
 
@@ -227,7 +252,9 @@ export default function Home() {
   const [goToLineValue, setGoToLineValue] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
   const [proposal, setProposal] = useState<{ changes: Array<{ path: string; content: string }>; action: AgentAction; summary: string } | null>(null)
+  const [rollback, setRollback] = useState<{ changes: Array<{ path: string; content: string }>; action: AgentAction; summary: string } | null>(null)
   const [applyingProposal, setApplyingProposal] = useState(false)
+  const [rollingBack, setRollingBack] = useState(false)
   const [output, setOutput] = useState("")
   const [outputKind, setOutputKind] = useState<"execution" | "agent" | "system">("system")
   const [lastAgentAction, setLastAgentAction] = useState<AgentAction | null>(null)
@@ -449,8 +476,14 @@ export default function Home() {
   async function applyProposal() {
     if (!proposal || applyingProposal) return
     setApplyingProposal(true)
+
+    const before: Array<{ path: string; content: string }> = []
+
     try {
       for (const change of proposal.changes) {
+        const current = await getProjectFile(PROJECT_ID, change.path)
+        before.push({ path: change.path, content: current.content })
+
         const openTab = uniqueTabs.find(tab => tab.path === change.path)
         if (
           openTab &&
@@ -483,18 +516,61 @@ export default function Home() {
       }
 
       const appliedCount = proposal.changes.length
-      const action = proposal.action
+      const appliedAction = proposal.action
+      const appliedSummary = proposal.summary
       setProposal(null)
+      setRollback({ changes: before, action: appliedAction, summary: appliedSummary })
       setStatus("Applied " + appliedCount + " file change(s)")
       setOutputKind("agent")
-      setLastAgentAction(action)
-      setOutput("Applied " + appliedCount + " proposed file change(s).")
+      setLastAgentAction(appliedAction)
+      setOutput("Applied " + appliedCount + " proposed file change(s). Rollback is available.")
       await refreshWorkspace()
     } catch (error) {
       setStatus(formatError(error, "Failed to apply proposal"))
     } finally {
       setApplyingProposal(false)
     }
+  }
+
+  async function applyRollback() {
+    if (!rollback || rollingBack) return
+    setRollingBack(true)
+    try {
+      for (const change of rollback.changes) {
+        await saveProjectFile(PROJECT_ID, change.path, change.content)
+      }
+
+      const selectedOriginal = rollback.changes.find(change => change.path === selectedFile)
+      if (selectedOriginal) {
+        setOpenTabs(current =>
+          current.map(tab =>
+            tab.path === selectedFile
+              ? {
+                  ...tab,
+                  content: selectedOriginal.content,
+                  savedContent: selectedOriginal.content
+                }
+              : tab
+          )
+        )
+      }
+
+      setRollback(null)
+      setStatus("AI changes rolled back")
+      setOutputKind("agent")
+      setOutput("AI changes rolled back successfully.")
+      await refreshWorkspace()
+    } catch (error) {
+      setStatus(formatError(error, "Rollback failed"))
+    } finally {
+      setRollingBack(false)
+    }
+  }
+
+  function rejectProposal() {
+    if (!proposal) return
+    setProposal(null)
+    setStatus("Proposal rejected")
   }
 
   function rejectProposal() {
@@ -659,7 +735,7 @@ export default function Home() {
           onMouseDown={rejectProposal}
         >
           <div
-            className="flex max-h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-neutral-700 bg-neutral-950 shadow-2xl"
+            className="flex max-h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-neutral-700 bg-neutral-950 shadow-2xl"
             onMouseDown={event => event.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-neutral-800 px-5 py-4">
@@ -669,11 +745,7 @@ export default function Home() {
                   {proposal.action.toUpperCase()} · {proposal.changes.length} file change(s)
                 </div>
               </div>
-              <button
-                onClick={rejectProposal}
-                disabled={applyingProposal}
-                className="rounded-md p-2 text-neutral-500 hover:bg-neutral-900 hover:text-white disabled:opacity-40"
-              >
+              <button onClick={rejectProposal} disabled={applyingProposal} className="rounded-md p-2 text-neutral-500 hover:bg-neutral-900 hover:text-white disabled:opacity-40">
                 <X size={16} />
               </button>
             </div>
@@ -686,6 +758,8 @@ export default function Home() {
               <div className="space-y-4">
                 {proposal.changes.map(change => {
                   const current = uniqueTabs.find(tab => tab.path === change.path)?.content ?? ""
+                  const rows = diffLines(current, change.content)
+
                   return (
                     <div key={change.path} className="overflow-hidden rounded-lg border border-neutral-800">
                       <div className="flex items-center justify-between border-b border-neutral-800 bg-neutral-900 px-3 py-2">
@@ -694,19 +768,17 @@ export default function Home() {
                           {current.split("\n").length} → {change.content.split("\n").length} lines
                         </span>
                       </div>
-                      <div className="grid grid-cols-2 divide-x divide-neutral-800 bg-[#090909]">
-                        <div className="p-3">
-                          <div className="mb-2 text-[9px] uppercase tracking-widest text-neutral-700">Current</div>
-                          <pre className="max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-5 text-neutral-600">
-                            {current || "(file not currently open)"}
-                          </pre>
-                        </div>
-                        <div className="p-3">
-                          <div className="mb-2 text-[9px] uppercase tracking-widest text-neutral-700">Proposed</div>
-                          <pre className="max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-5 text-neutral-300">
-                            {change.content}
-                          </pre>
-                        </div>
+                      <div className="overflow-auto bg-[#090909] font-mono text-[10px] leading-5">
+                        {rows.map((row, index) => (
+                          <div
+                            key={`${change.path}:${index}`}
+                            className={row.kind === "removed" ? "grid grid-cols-[44px_44px_1fr] bg-red-950/30 text-red-300" : row.kind === "added" ? "grid grid-cols-[44px_44px_1fr] bg-emerald-950/30 text-emerald-300" : "grid grid-cols-[44px_44px_1fr] text-neutral-600"}
+                          >
+                            <span className="border-r border-neutral-900 px-2 text-right">{row.oldLine ?? ""}</span>
+                            <span className="border-r border-neutral-900 px-2 text-right">{row.newLine ?? ""}</span>
+                            <span className="whitespace-pre px-3"><span className="mr-2 select-none text-neutral-700">{row.kind === "removed" ? "-" : row.kind === "added" ? "+" : " "}</span>{row.text || " "}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )
@@ -715,22 +787,29 @@ export default function Home() {
             </div>
 
             <div className="flex items-center justify-end gap-2 border-t border-neutral-800 px-5 py-3">
-              <button
-                onClick={rejectProposal}
-                disabled={applyingProposal}
-                className="rounded-lg border border-neutral-800 px-4 py-2 text-xs text-neutral-400 hover:bg-neutral-900 hover:text-white disabled:opacity-40"
-              >
+              <button onClick={rejectProposal} disabled={applyingProposal} className="rounded-lg border border-neutral-800 px-4 py-2 text-xs text-neutral-400 hover:bg-neutral-900 hover:text-white disabled:opacity-40">
                 Reject
               </button>
-              <button
-                onClick={() => void applyProposal()}
-                disabled={applyingProposal}
-                className="rounded-lg bg-white px-4 py-2 text-xs font-medium text-black disabled:opacity-40"
-              >
+              <button onClick={() => void applyProposal()} disabled={applyingProposal} className="rounded-lg bg-white px-4 py-2 text-xs font-medium text-black disabled:opacity-40">
                 {applyingProposal ? "Applying..." : "Accept & Apply"}
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {rollback && (
+        <div className="fixed bottom-5 right-5 z-40 flex items-center gap-3 rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 shadow-2xl">
+          <div>
+            <div className="text-xs font-medium text-neutral-200">AI changes applied</div>
+            <div className="mt-1 text-[10px] text-neutral-600">{rollback.changes.length} file(s) changed · rollback available</div>
+          </div>
+          <button onClick={() => void applyRollback()} disabled={rollingBack} className="rounded-lg border border-neutral-700 px-3 py-2 text-xs text-neutral-300 hover:bg-neutral-900 disabled:opacity-40">
+            {rollingBack ? "Rolling back..." : "Rollback"}
+          </button>
+          <button onClick={() => setRollback(null)} disabled={rollingBack} className="rounded p-1 text-neutral-600 hover:text-white disabled:opacity-40" title="Dismiss rollback">
+            <X size={14} />
+          </button>
         </div>
       )}
 
