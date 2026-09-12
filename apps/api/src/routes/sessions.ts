@@ -2,6 +2,7 @@ import { Router } from "express"
 import {
   createAgentSession,
   getAgentSession,
+  listAgentSessions,
   serializeAgentSession,
   subscribeAgentSession
 } from "../services/agent-sessions"
@@ -28,6 +29,16 @@ router.post("/", (req, res) => {
   res.status(202).json({
     success: true,
     session: serializeAgentSession(session)
+  })
+})
+
+router.get("/", (req, res) => {
+  const rawLimit = Number(req.query.limit ?? 25)
+  const limit = Number.isFinite(rawLimit) ? rawLimit : 25
+
+  res.json({
+    success: true,
+    sessions: listAgentSessions(limit)
   })
 })
 
