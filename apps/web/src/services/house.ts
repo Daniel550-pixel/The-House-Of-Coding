@@ -19,17 +19,15 @@ const preferredProvider = (process.env.LLM_PROVIDER ?? "").trim().toLowerCase()
 
 if (preferredProvider === "gemini" && process.env.GEMINI_API_KEY) {
     llm.register(GeminiProvider)
-}
-
-if (preferredProvider !== "gemini" && process.env.OPENAI_API_KEY) {
+} else if (preferredProvider === "openai" && process.env.OPENAI_API_KEY) {
     llm.register(OpenAIProvider)
 }
 
-if (preferredProvider !== "openai" && process.env.GEMINI_API_KEY && !llm.has("gemini")) {
+if (process.env.GEMINI_API_KEY && !llm.has("gemini")) {
     llm.register(GeminiProvider)
 }
 
-if (preferredProvider !== "gemini" && process.env.OPENAI_API_KEY && !llm.has("openai")) {
+if (process.env.OPENAI_API_KEY && !llm.has("openai")) {
     llm.register(OpenAIProvider)
 }
 
